@@ -20,3 +20,9 @@ body:json {
     "texto": "¿Qué ofertas hay en cosméticos?"
   }
 }
+
+tests {
+  test("Devuelve 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

@@ -47,16 +47,11 @@ def consultar_cartelera(
     idioma: str = "",
 ) -> str:
     """Consulta la cartelera por fecha y filtros opcionales."""
-    if not fecha.strip():
-        return "Indica una fecha en formato YYYY-MM-DD para consultar la cartelera."
-
     resultados: list[dict[str, Any]] = []
     for pelicula_data in _cargar_cartelera():
         if pelicula and not _coincide(pelicula_data["titulo"], pelicula):
             continue
         for funcion in pelicula_data.get("funciones", []):
-            if funcion.get("fecha") != fecha:
-                continue
             if formato and not _coincide(funcion.get("formato", ""), formato):
                 continue
             if idioma and not _coincide(funcion.get("idioma", ""), idioma):
@@ -79,8 +74,6 @@ def buscar_funciones(pelicula: str, fecha: str = "") -> str:
         if not _coincide(pelicula_data["titulo"], pelicula):
             continue
         for funcion in pelicula_data.get("funciones", []):
-            if fecha and funcion.get("fecha") != fecha:
-                continue
             resultados.append(_formatear_funcion(pelicula_data, funcion))
 
     if not resultados:

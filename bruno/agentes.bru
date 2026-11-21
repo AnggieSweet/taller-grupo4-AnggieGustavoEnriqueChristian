@@ -13,3 +13,9 @@ get {
 headers {
   X-API-Key: {{apiKey}}
 }
+
+tests {
+  test("Devuelve 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

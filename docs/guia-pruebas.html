@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guía de pruebas · Agentes Mall Grupo 4</title>
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --panel: #ffffff;
+    --ink: #1f2328;
+    --muted: #5d6470;
+    --line: #e4e0d6;
+    --accent: #2f6f5e;
+    --accent-soft: #e3efe9;
+    --warn: #9a5b00;
+    --warn-soft: #fff3dc;
+    --bad: #a83232;
+    --bad-soft: #fbe6e6;
+    --code-bg: #1e2430;
+    --code-ink: #e6e9ef;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  .layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+  nav {
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--line);
+    padding: 28px 18px;
+  }
+  nav .brand { font-weight: 700; font-size: 17px; margin-bottom: 4px; }
+  nav .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+  nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 8px;
+    color: var(--ink); text-decoration: none; font-size: 14.5px;
+  }
+  nav a:hover { background: var(--accent-soft); }
+  nav a .n {
+    flex: 0 0 24px; height: 24px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 12px; font-weight: 700;
+    display: grid; place-items: center;
+  }
+  nav .progress { margin-top: 24px; font-size: 13px; color: var(--muted); }
+  nav .bar { height: 6px; background: var(--line); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  nav .bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+
+  main { padding: 40px 48px 80px; max-width: 980px; }
+  header.hero {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 28px 32px; margin-bottom: 28px;
+  }
+  header.hero h1 { margin: 0 0 6px; font-size: 28px; }
+  header.hero p { margin: 0; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip {
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px;
+  }
+
+  .flow {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-top: 20px; font-size: 13.5px;
+  }
+  .flow .box {
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 12px;
+  }
+  .flow .arrow { color: var(--muted); }
+
+  section {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 26px 32px; margin-bottom: 22px; scroll-margin-top: 20px;
+  }
+  section h2 { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; font-size: 21px; }
+  section h2 .n {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 15px;
+    display: grid; place-items: center; flex: 0 0 32px;
+  }
+  section h3 { font-size: 16.5px; margin: 22px 0 8px; }
+  p { margin: 8px 0; }
+  ol, ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  code {
+    background: #efece4; padding: 1px 6px; border-radius: 5px;
+    font-family: Consolas, "Cascadia Code", monospace; font-size: 14px;
+  }
+
+  .cmd {
+    position: relative; background: var(--code-bg); color: var(--code-ink);
+    border-radius: 10px; padding: 14px 16px; margin: 10px 0;
+    font-family: Consolas, "Cascadia Code", monospace; font-size: 14px;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .cmd .label {
+    display: block; color: #8fd3b8; font-size: 12px; margin-bottom: 4px;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  .cmd button {
+    position: absolute; top: 10px; right: 10px;
+    background: #2e3646; color: #cfd6e2; border: 1px solid #44506a;
+    border-radius: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  .cmd button:hover { background: #3a4458; }
+  .cmd button.ok { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .note, .warn, .bad {
+    border-radius: 10px; padding: 12px 16px; margin: 12px 0; font-size: 15px;
+  }
+  .note { background: var(--accent-soft); border-left: 4px solid var(--accent); }
+  .warn { background: var(--warn-soft); border-left: 4px solid var(--warn); }
+  .bad { background: var(--bad-soft); border-left: 4px solid var(--bad); }
+
+  .tabs { margin-top: 12px; }
+  .tabs .tablist { display: flex; gap: 6px; border-bottom: 1px solid var(--line); }
+  .tabs .tablist button {
+    background: none; border: none; padding: 9px 16px; cursor: pointer;
+    font-size: 14.5px; color: var(--muted); border-bottom: 3px solid transparent;
+    font-family: inherit;
+  }
+  .tabs .tablist button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .tabs .panel { display: none; padding-top: 6px; }
+  .tabs .panel.active { display: block; }
+  .reco {
+    font-size: 11px; background: var(--accent); color: #fff;
+    padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #faf8f3; font-weight: 600; }
+  td.check { width: 40px; text-align: center; }
+  td.check input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+  tr.done td { color: var(--muted); }
+  .s200, .s401, .s422, .s504 {
+    font-weight: 700; padding: 1px 8px; border-radius: 6px; font-size: 13px; white-space: nowrap;
+  }
+  .s200 { background: var(--accent-soft); color: var(--accent); }
+  .s401, .s422 { background: var(--warn-soft); color: var(--warn); }
+  .s504 { background: var(--bad-soft); color: var(--bad); }
+
+  details {
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; margin: 10px 0;
+    background: #fcfbf8;
+  }
+  details summary { cursor: pointer; font-weight: 600; }
+  details[open] summary { margin-bottom: 8px; }
+
+  footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 30px; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+    main { padding: 24px 16px 60px; }
+    section { padding: 20px 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav>
+  <div class="brand">Agentes Mall · Grupo 4</div>
+  <div class="sub">Guía de instalación y pruebas</div>
+  <a href="#requisitos"><span class="n">1</span>Requisitos</a>
+  <a href="#instalar"><span class="n">2</span>Instalar</a>
+  <a href="#configurar"><span class="n">3</span>Configurar .env</a>
+  <a href="#levantar"><span class="n">4</span>Levantar todo</a>
+  <a href="#swagger"><span class="n">5</span>Probar en Swagger</a>
+  <a href="#bruno"><span class="n">6</span>Probar en Bruno</a>
+  <a href="#pytest"><span class="n">7</span>Pruebas automáticas</a>
+  <a href="#telegram"><span class="n">8</span>Telegram</a>
+  <a href="#detener"><span class="n">9</span>Detener</a>
+  <a href="#problemas"><span class="n">?</span>Problemas comunes</a>
+  <div class="progress">
+    Pruebas marcadas: <strong id="prog-txt">0</strong>
+    <div class="bar"><span id="prog-bar"></span></div>
+  </div>
+</nav>
+
+<main>
+
+<header class="hero">
+  <h1>Guía de pruebas del proyecto</h1>
+  <p>Sigue los pasos en orden. Cada prueba indica qué resultado debes obtener, y puedes marcarla cuando te funcione.</p>
+  <div class="chips">
+    <span class="chip">Opción 1 · API FastAPI con X-API-Key</span>
+    <span class="chip">Opción 2 · Bot de Telegram</span>
+    <span class="chip">Windows + PowerShell</span>
+  </div>
+  <div class="flow">
+    <span class="box">Swagger · Bruno · Telegram</span><span class="arrow">→</span>
+    <span class="box">API :8010</span><span class="arrow">→</span>
+    <span class="box">Coordinador</span><span class="arrow">→ A2A →</span>
+    <span class="box">6 agentes (8000–8006)</span>
+  </div>
+</header>
+
+<!-- 1 -->
+<section id="requisitos">
+  <h2><span class="n">1</span>Requisitos</h2>
+  <table>
+    <tr><th>Necesitas</th><th>Para qué</th><th>¿Obligatorio?</th></tr>
+    <tr><td>Windows + PowerShell</td><td>Ejecutar los comandos</td><td>Sí</td></tr>
+    <tr><td>Python 3.13</td><td>Agentes y API</td><td>Sí</td></tr>
+    <tr><td>Git</td><td>Clonar el repositorio (o descargar el ZIP)</td><td>Sí</td></tr>
+    <tr><td>Clave de Gemini (<code>GOOGLE_API_KEY</code>)</td><td>El modelo de lenguaje</td><td>Sí</td></tr>
+    <tr><td><a href="https://www.usebruno.com/" target="_blank">Bruno</a></td><td>Probar la API con la colección lista</td><td>Opcional</td></tr>
+    <tr><td><a href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/" target="_blank">cloudflared</a></td><td>Túnel para Telegram</td><td>Solo Telegram</td></tr>
+    <tr><td>Cuenta de Telegram</td><td>Crear y probar el bot</td><td>Solo Telegram</td></tr>
+  </table>
+</section>
+
+<!-- 2 -->
+<section id="instalar">
+  <h2><span class="n">2</span>Instalar (una sola vez)</h2>
+  <p>Abre PowerShell en la carpeta donde quieras el proyecto:</p>
+  <div class="cmd"><button>Copiar</button>git clone https://github.com/AnggieSweet/taller-grupo4-AnggieGustavoEnriqueChristian.git
+cd taller-grupo4-AnggieGustavoEnriqueChristian</div>
+
+  <p>Permite ejecutar scripts y activa las tildes en esta ventana (repítelo cada vez que abras una terminal nueva):</p>
+  <div class="cmd"><button>Copiar</button>Set-ExecutionPolicy -Scope Process Bypass
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8</div>
+
+  <div class="tabs">
+    <div class="tablist">
+      <button class="active" data-tab="inst-a">Opción A · Script <span class="reco">recomendada</span></button>
+      <button data-tab="inst-b">Opción B · Comandos manuales</button>
+    </div>
+    <div class="panel active" id="inst-a">
+      <div class="cmd"><button>Copiar</button>.\instalar.ps1</div>
+      <p>Crea los dos entornos virtuales, instala las dependencias y crea <code>.env</code> y <code>bruno/.env</code> a partir de los ejemplos. Tarda unos minutos.</p>
+    </div>
+    <div class="panel" id="inst-b">
+      <div class="cmd"><button>Copiar</button>py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+py -3.13 -m venv .venv-crew
+.\.venv-crew\Scripts\python.exe -m pip install -r requirements-crew.txt
+
+Copy-Item .env.example .env
+Copy-Item bruno/.env.example bruno/.env</div>
+      <p><code>.venv</code> se usa para la API y casi todos los agentes. <code>.venv-crew</code> es solo para el agente de restaurantes (CrewAI).</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="configurar">
+  <h2><span class="n">3</span>Configurar <code>.env</code></h2>
+  <p>Abre el archivo <code>.env</code> y completa estas variables. Las demás (URLs y puertos) ya vienen listas.</p>
+  <table>
+    <tr><th>Variable</th><th>¿Obligatoria?</th><th>Qué poner</th></tr>
+    <tr><td><code>GOOGLE_API_KEY</code></td><td>Sí</td><td>Tu clave de Gemini</td></tr>
+    <tr><td><code>API_KEY</code></td><td>Sí</td><td>Una clave inventada para usar la API (genérala abajo)</td></tr>
+    <tr><td><code>TELEGRAM_TOKEN</code></td><td>Solo Telegram</td><td>El token que entrega @BotFather</td></tr>
+    <tr><td><code>TELEGRAM_SECRET</code></td><td>Solo Telegram</td><td>Otra clave generada abajo</td></tr>
+    <tr><td><code>TELEGRAM_PERMITIDOS</code></td><td>Solo Telegram</td><td>Déjala vacía al principio</td></tr>
+  </table>
+  <p>Para generar <code>API_KEY</code> y <code>TELEGRAM_SECRET</code>, ejecuta este comando una vez por cada una:</p>
+  <div class="cmd"><button>Copiar</button>.\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"</div>
+  <p>Luego abre <code>bruno/.env</code> y pon la <strong>misma</strong> <code>API_KEY</code>:</p>
+  <div class="cmd"><span class="label">bruno/.env</span>API_KEY=tu-clave</div>
+  <div class="warn"><strong>Sin comillas.</strong> Si escribes <code>API_KEY="abc"</code>, Bruno envía las comillas y la API responde 401.</div>
+  <div class="note">Los archivos <code>.env</code> y <code>bruno/.env</code> nunca se suben a GitHub. No los compartas ni los muestres en capturas.</div>
+</section>
+
+<!-- 4 -->
+<section id="levantar">
+  <h2><span class="n">4</span>Levantar los agentes y la API</h2>
+  <div class="warn"><strong>Orden importante:</strong> primero los agentes y después la API. La API carga la lista de agentes al iniciar; si falta alguno, <code>/chat</code> responde 502.</div>
+
+  <div class="tabs">
+    <div class="tablist">
+      <button class="active" data-tab="lev-a">Opción A · Script <span class="reco">recomendada</span></button>
+      <button data-tab="lev-b">Opción B · Comandos manuales</button>
+    </div>
+    <div class="panel active" id="lev-a">
+      <div class="cmd"><button>Copiar</button>.\iniciar.ps1</div>
+      <p>Levanta los 6 agentes y la API en segundo plano. Debes ver <em>"… responde correctamente"</em> para cada uno y, al final, la dirección de Swagger. Los registros quedan en la carpeta <code>logs/</code>.</p>
+    </div>
+    <div class="panel" id="lev-b">
+      <p>Abre <strong>una terminal por cada comando</strong>, siempre en la carpeta del proyecto. No hace falta activar el entorno.</p>
+      <div class="cmd"><button>Copiar</button><span class="label">Terminal 1 · Viajes</span>.\.venv\Scripts\python.exe -m uvicorn src.agente_viajes.server:app --port 8000</div>
+      <div class="cmd"><button>Copiar</button><span class="label">Terminal 2 · Restaurantes (usa .venv-crew)</span>.\.venv-crew\Scripts\python.exe -m uvicorn src.agente_restaurantes.server:app --port 8001</div>
+      <div class="cmd"><button>Copiar</button><span class="label">Terminal 3 · Anggie (tiendas del mall)</span>.\.venv\Scripts\python.exe -m uvicorn src.agente_anggie.server:app --port 8003</div>
+      <div class="cmd"><button>Copiar</button><span class="label">Terminal 4 · Enrique (cine)</span>.\.venv\Scripts\python.exe -m uvicorn src.agente_enrique.server:app --port 8004</div>
+      <div class="cmd"><button>Copiar</button><span class="label">Terminal 5 · AlgoMarket (supermercado)</span>.\.venv\Scripts\python.exe -m uvicorn src.agente_algomarket.server:app --port 8005</div>
+      <div class="cmd"><button>Copiar</button><span class="label">Terminal 6 · Christian</span>.\.venv\Scripts\python.exe -m uvicorn src.agente_christian.server:app --port 8006</div>
+      <p>Cuando los 6 muestren <code>Application startup complete</code>:</p>
+      <div class="cmd"><button>Copiar</button><span class="label">Terminal 7 · API</span>.\.venv\Scripts\python.exe -m uvicorn api.app:app --port 8010</div>
+      <div class="note">No hace falta levantar el coordinador (puerto 8002): la API lo usa directamente.</div>
+    </div>
+  </div>
+
+  <h3>Comprobación rápida</h3>
+  <p>Abre <a href="http://localhost:8010/health" target="_blank">http://localhost:8010/health</a> en el navegador.</p>
+  <table>
+    <tr><th></th><th>Prueba</th><th>Resultado esperado</th></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>/health</td><td><span class="s200">200</span> <code>{"ok":true,"modelo":"gemini-3.5-flash-lite"}</code></td></tr>
+  </table>
+</section>
+
+<!-- 5 -->
+<section id="swagger">
+  <h2><span class="n">5</span>Probar en Swagger (navegador)</h2>
+  <ol>
+    <li>Abre <a href="http://localhost:8010/docs" target="_blank">http://localhost:8010/docs</a>.</li>
+    <li>Pulsa <strong>Authorize</strong> y pega tu <code>API_KEY</code>.</li>
+    <li>Abre <code>POST /chat</code> → <strong>Try it out</strong> y envía:</li>
+  </ol>
+  <div class="cmd"><button>Copiar</button>{ "user_id": "prueba-1", "texto": "¿Qué ofertas hay en cosmética?" }</div>
+  <table>
+    <tr><th></th><th>Prueba</th><th>Cómo</th><th>Resultado esperado</th></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>Acceso permitido</td><td>Con clave, el JSON de arriba</td><td><span class="s200">200</span> Agente de Anggie con labial y rubor</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>Memoria</td><td>Mismo <code>user_id</code>, texto <code>"¿y qué más tienen?"</code></td><td><span class="s200">200</span> sigue hablando de cosmética</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>Fuera de alcance</td><td><code>"¿Cuál es la capital de Francia?"</code></td><td><span class="s200">200</span> agente "ninguno"</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>Texto vacío</td><td>Con clave, <code>"texto": ""</code></td><td><span class="s422">422</span> mensaje de error claro</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>Acceso rechazado</td><td>Pulsa <strong>Logout</strong> en Authorize y vuelve a enviar</td><td><span class="s401">401</span> "Acceso no autorizado"</td></tr>
+  </table>
+</section>
+
+<!-- 6 -->
+<section id="bruno">
+  <h2><span class="n">6</span>Probar en Bruno (colección lista)</h2>
+  <ol>
+    <li>Abre Bruno → <strong>Open Collection</strong> → elige la carpeta <code>bruno/</code> del proyecto.</li>
+    <li>Arriba a la derecha selecciona el entorno <strong>local</strong> (si dice "No Environment", no funcionará).</li>
+    <li>Pulsa el ícono del corredor 🏃 → <strong>Run Collection</strong>.</li>
+  </ol>
+  <table>
+    <tr><th></th><th>Petición</th><th>Resultado esperado</th></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>health</td><td><span class="s200">200</span></td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>agentes</td><td><span class="s200">200</span> lista de 6 agentes</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>chat-anggie</td><td><span class="s200">200</span> ofertas de cosmética</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>chat-enrique</td><td><span class="s200">200</span> cartelera u horarios de cine</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>chat-algomarket</td><td><span class="s200">200</span> responde AlgoMarket</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>chat-christian</td><td><span class="s200">200</span> responde el agente de Christian</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>chat-viajes</td><td><span class="s200">200</span> responde el agente de viajes (si Gemini está lento puede dar <span class="s504">504</span>; reintenta)</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>chat-restaurantes</td><td><span class="s200">200</span> responde el agente de restaurantes</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>chat-ninguno</td><td><span class="s200">200</span> agente "ninguno"</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>chat-sin-clave</td><td><span class="s401">401</span></td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>chat-texto-vacio</td><td><span class="s422">422</span></td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>memoria-1 → memoria-2</td><td><span class="s200">200</span> la segunda recuerda la primera</td></tr>
+  </table>
+  <div class="note">Si <strong>todo</strong> da 401: revisa que <code>bruno/.env</code> tenga la misma <code>API_KEY</code> que <code>.env</code>, sin comillas, y reinicia Bruno.</div>
+</section>
+
+<!-- 7 -->
+<section id="pytest">
+  <h2><span class="n">7</span>Pruebas automáticas (pytest)</h2>
+  <p>Requieren los agentes levantados y <strong>gastan llamadas a Gemini</strong>.</p>
+  <div class="cmd"><button>Copiar</button>.\.venv\Scripts\python.exe -m pytest</div>
+  <table>
+    <tr><th></th><th>Prueba</th><th>Resultado esperado</th></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>Supervisor (18 casos)</td><td>Aprueba con <strong>al menos 16 de 18</strong> bien clasificados. El modelo no es determinista, así que el número exacto puede variar.</td></tr>
+  </table>
+</section>
+
+<!-- 8 -->
+<section id="telegram">
+  <h2><span class="n">8</span>Telegram</h2>
+  <div class="note">Cada persona debe crear <strong>su propio bot</strong>: el token del grupo no está en el repositorio.</div>
+
+  <h3>Crear el bot</h3>
+  <ol>
+    <li>Abre Telegram (app o <a href="https://web.telegram.org" target="_blank">web.telegram.org</a>) y busca <a href="https://t.me/BotFather" target="_blank">@BotFather</a> (con ✔️ azul).</li>
+    <li>Envía <code>/newbot</code>, escribe un nombre (ej. <em>Mall Pruebas</em>) y un username que termine en <code>bot</code> (ej. <em>mall_pruebas_bot</em>).</li>
+    <li>Copia el token que te entrega en <code>.env</code> → <code>TELEGRAM_TOKEN</code>.</li>
+    <li>Genera <code>TELEGRAM_SECRET</code> (comando del paso 3) y deja <code>TELEGRAM_PERMITIDOS=</code> vacío.</li>
+  </ol>
+  <div class="bad"><strong>El token es secreto:</strong> quien lo tenga controla tu bot. No lo muestres en capturas.</div>
+
+  <h3>Conectar el bot</h3>
+  <p>Con los agentes y la API ya levantados (paso 4), en otra terminal:</p>
+  <div class="cmd"><button>Copiar</button>.\.venv\Scripts\python.exe -m scripts.telegram_local</div>
+  <p>Espera el mensaje <em>"Escribe a tu bot en Telegram. Ctrl+C para detener"</em>. <strong>Puede tardar hasta 2 minutos.</strong> Deja esa terminal abierta.</p>
+
+  <h3>Autorizar tu chat</h3>
+  <ol>
+    <li>Escribe a tu bot. Responderá <em>"No autorizado. Tu chat_id es X"</em>.</li>
+    <li>Pon ese número en <code>.env</code> → <code>TELEGRAM_PERMITIDOS=X</code> (varios, separados por comas).</li>
+    <li>Reinicia la API: <code>.\detener.ps1</code> y luego <code>.\iniciar.ps1</code>. El script del túnel puede seguir abierto.</li>
+    <li>Vuelve a escribir al bot.</li>
+  </ol>
+
+  <table>
+    <tr><th></th><th>Prueba</th><th>Resultado esperado</th></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>Chat no autorizado</td><td>"No autorizado. Tu chat_id es X"</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>Chat autorizado: <em>"¿Qué películas hay hoy?"</em></td><td>Responde el agente de cine con la cartelera</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td>Seguimiento: <em>"ofertas en cosmética"</em> y luego <em>"¿y qué más tienen?"</em></td><td>Mantiene el tema (memoria por chat)</td></tr>
+    <tr><td class="check"><input type="checkbox"></td><td><code>/telegram</code> sin secreto (comando abajo)</td><td><span class="s401">401</span> "Acceso no autorizado"</td></tr>
+  </table>
+  <div class="cmd"><button>Copiar</button>curl.exe -i -X POST http://localhost:8010/telegram -H "Content-Type: application/json" -d "{}"</div>
+  <div class="note">El túnel cambia de URL cada vez que se inicia y depende de tu computador: sirve para probar, no es un despliegue. Al presionar <strong>Ctrl+C</strong> en el script se borra el webhook y se cierra el túnel.</div>
+</section>
+
+<!-- 9 -->
+<section id="detener">
+  <h2><span class="n">9</span>Detener</h2>
+  <div class="tabs">
+    <div class="tablist">
+      <button class="active" data-tab="det-a">Opción A · Script</button>
+      <button data-tab="det-b">Opción B · Manual</button>
+    </div>
+    <div class="panel active" id="det-a">
+      <div class="cmd"><button>Copiar</button>.\detener.ps1</div>
+      <p>Si usaste Telegram, primero presiona <strong>Ctrl+C</strong> en la terminal del túnel.</p>
+    </div>
+    <div class="panel" id="det-b">
+      <p>Presiona <strong>Ctrl+C</strong> en cada terminal (agentes, API y túnel de Telegram).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ? -->
+<section id="problemas">
+  <h2><span class="n">?</span>Problemas comunes</h2>
+
+  <details>
+    <summary>"La ejecución de scripts está deshabilitada en este sistema"</summary>
+    <p>Ejecuta esto en la misma terminal y vuelve a intentar:</p>
+    <div class="cmd"><button>Copiar</button>Set-ExecutionPolicy -Scope Process Bypass</div>
+  </details>
+
+  <details>
+    <summary>"Ya existe logs/pids.txt"</summary>
+    <p>Quedó un arranque anterior. Ejecuta <code>.\detener.ps1</code> y luego <code>.\iniciar.ps1</code>.</p>
+  </details>
+
+  <details>
+    <summary>"Puerto X ocupado"</summary>
+    <p>Hay un agente o API corriendo de antes. Ciérralo con Ctrl+C en su terminal, o libera todos los puertos con:</p>
+    <div class="cmd"><button>Copiar</button>Get-NetTCPConnection -LocalPort 8000,8001,8003,8004,8005,8006,8010 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }</div>
+    <p>Luego ejecuta <code>.\detener.ps1</code> y <code>.\iniciar.ps1</code>.</p>
+  </details>
+
+  <details>
+    <summary>Aparece <code>&gt;&gt;</code> y no pasa nada</summary>
+    <p>PowerShell cree que el comando está incompleto (pasa al pegar con caracteres invisibles). Presiona <strong>Ctrl+C</strong> y escribe el comando a mano.</p>
+  </details>
+
+  <details>
+    <summary><code>/chat</code> responde 502</summary>
+    <p>La API se inició antes que los agentes. Ejecuta <code>.\detener.ps1</code> y <code>.\iniciar.ps1</code> (el script respeta el orden). Si persiste, revisa <code>logs\&lt;agente&gt;.log</code>.</p>
+  </details>
+
+  <details>
+    <summary>Responde 504 o "Hubo un problema, intenta de nuevo"</summary>
+    <p>Gemini está lento o saturado (error 503 de alta demanda). Espera unos segundos y reintenta.</p>
+  </details>
+
+  <details>
+    <summary>Todo da 401 en Bruno</summary>
+    <p>Revisa: entorno <strong>local</strong> seleccionado, <code>bruno/.env</code> con la misma <code>API_KEY</code> que <code>.env</code>, sin comillas, y reinicia Bruno.</p>
+  </details>
+
+  <details>
+    <summary>El script de Telegram dice que /health no respondió</summary>
+    <p>Comprueba que la API esté arriba (<code>curl.exe http://localhost:8010/health</code>). Si responde, el túnel tardó en activarse:</p>
+    <div class="cmd"><button>Copiar</button>ipconfig /flushdns
+.\.venv\Scripts\python.exe -m scripts.telegram_local</div>
+  </details>
+
+  <details>
+    <summary>Se ven caracteres raros (Ã³, Ã±)</summary>
+    <div class="cmd"><button>Copiar</button>[Console]::OutputEncoding = [System.Text.Encoding]::UTF8</div>
+  </details>
+
+  <h3>Límites conocidos</h3>
+  <ul>
+    <li>El modelo ignora la temperatura: las respuestas pueden variar entre ejecuciones.</li>
+    <li>Restaurantes solo cubre Lima, Bogotá y Buenos Aires.</li>
+    <li>La cartelera de cine es de ejemplo y la misma todos los días.</li>
+    <li>La memoria vive en RAM y se pierde al reiniciar la API.</li>
+    <li>Telegram usa un túnel temporal y solo procesa mensajes de texto.</li>
+  </ul>
+</section>
+
+<footer>Agentic AI · Curso 2 · Taller "Implementa y entrega tu agente" · Grupo 4</footer>
+</main>
+</div>
+
+<script>
+  // Copiar comandos
+  document.querySelectorAll('.cmd button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const box = btn.parentElement;
+      const clone = box.cloneNode(true);
+      clone.querySelectorAll('button, .label').forEach(el => el.remove());
+      const text = clone.textContent.trim();
+      const done = () => {
+        btn.textContent = 'Copiado ✓'; btn.classList.add('ok');
+        setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('ok'); }, 1500);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(() => fallback(text, done));
+      } else {
+        fallback(text, done);
+      }
+    });
+  });
+  function fallback(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    ta.remove();
+  }
+
+  // Pestañas
+  document.querySelectorAll('.tabs').forEach(tabs => {
+    tabs.querySelectorAll('.tablist button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabs.querySelectorAll('.tablist button').forEach(b => b.classList.remove('active'));
+        tabs.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        tabs.querySelector('#' + btn.dataset.tab).classList.add('active');
+      });
+    });
+  });
+
+  // Progreso de pruebas
+  const boxes = document.querySelectorAll('td.check input');
+  function update() {
+    let n = 0;
+    boxes.forEach(b => {
+      b.closest('tr').classList.toggle('done', b.checked);
+      if (b.checked) n++;
+    });
+    document.getElementById('prog-txt').textContent = n + ' de ' + boxes.length;
+    document.getElementById('prog-bar').style.width = (n / boxes.length * 100) + '%';
+  }
+  boxes.forEach(b => b.addEventListener('change', update));
+  update();
+</script>
+</body>
+</html>

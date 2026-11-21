@@ -20,3 +20,9 @@ body:json {
     "texto": "¿Qué vuelos hay de Santiago a Lima el 2026-12-20?"
   }
 }
+
+tests {
+  test("Devuelve 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

@@ -8,11 +8,14 @@ from contextlib import asynccontextmanager
 from hmac import compare_digest
 from typing import Annotated, Any
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import (
     Body,
+    BackgroundTasks,
     Depends,
     FastAPI,
+    Header,
     HTTPException,
     Security,
     status,
@@ -26,9 +29,14 @@ from src.coordinador.graph import consultar, establecer_catalogo
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 _registro = logging.getLogger("api.mall")
 MODELO = os.getenv("MODELO", "gemini-3.5-flash-lite")
 API_KEY = os.getenv("API_KEY", "")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+TELEGRAM_SECRET = os.getenv("TELEGRAM_SECRET", "")
+TELEGRAM_PERMITIDOS = os.getenv("TELEGRAM_PERMITIDOS", "")
 TIEMPO_MAXIMO_CONSULTA = 75.0
 _catalogo_agentes: list[dict[str, Any]] = []
 
@@ -268,11 +276,90 @@ async def chat(peticion: ChatRequest) -> ChatResponse:
     return ChatResponse(**valores_limpios)
 
 
-@app.post(
-    "/telegram",
-    include_in_schema=False,
-    dependencies=[Depends(validar_api_key)],
-)
-async def telegram(_: Any = Body(...)) -> dict[str, bool]:
-    """Punto de entrada temporal para webhooks de Telegram."""
+async def _enviar_mensaje_telegram(chat_id: str, texto: str) -> None:
+    """Envía una respuesta al chat, sin registrar la URL que contiene el token."""
+    if not TELEGRAM_TOKEN:
+        _registro.error("No se puede enviar el mensaje: TELEGRAM_TOKEN no está configurado.")
+        return
+    texto = texto.replace("**", "")
+    if TELEGRAM_TOKEN in texto:
+        texto = texto.replace(TELEGRAM_TOKEN, "[REDACTADO]")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as cliente:
+            respuesta = await cliente.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                json={"chat_id": chat_id, "text": texto[:4000]},
+            )
+            respuesta.raise_for_status()
+    except Exception as error:
+        _registro.error("No se pudo enviar el mensaje de Telegram (%s).", type(error).__name__)
+
+
+async def _procesar_actualizacion_telegram(actualizacion: Any) -> None:
+    """Valida el chat, consulta al coordinador si está permitido y responde."""
+    try:
+        mensaje = actualizacion.get("message") if isinstance(actualizacion, dict) else None
+        chat = mensaje.get("chat") if isinstance(mensaje, dict) else None
+        chat_id_original = chat.get("id") if isinstance(chat, dict) else None
+        if chat_id_original is None:
+            _registro.warning("Actualización de Telegram sin message.chat.id; no se puede responder.")
+            return
+        chat_id = str(chat_id_original)
+
+        texto = mensaje.get("text")
+        if not isinstance(texto, str) or not texto.strip():
+            await _enviar_mensaje_telegram(chat_id, "Solo entiendo mensajes de texto")
+            return
+
+        permitidos = {valor.strip() for valor in TELEGRAM_PERMITIDOS.split(",") if valor.strip()}
+        if chat_id not in permitidos:
+            await _enviar_mensaje_telegram(chat_id, f"No autorizado. Tu chat_id es {chat_id}")
+            return
+
+        try:
+            async with asyncio.timeout(TIEMPO_MAXIMO_CONSULTA):
+                resultado = await consultar(texto, thread_id=f"tg-{chat_id}")
+        except Exception as error:
+            _registro.error(
+                "Falló la consulta del coordinador desde Telegram: tipo=%s agente=no disponible.",
+                type(error).__name__,
+            )
+            await _enviar_mensaje_telegram(chat_id, "Hubo un problema, intenta de nuevo")
+            return
+
+        respuesta = str(resultado.get("respuesta", ""))
+        if not respuesta or respuesta.startswith("No se pudo contactar al agente:"):
+            tipo_error = "RespuestaVacia"
+            if respuesta.startswith("No se pudo contactar al agente:"):
+                tipo_error = (
+                    "TimeoutError"
+                    if any(palabra in respuesta.casefold() for palabra in ("tiempo de espera", "timeout", "timed out"))
+                    else "ErrorAgenteRemoto"
+                )
+            _registro.error(
+                "Falló la consulta del coordinador desde Telegram: tipo=%s agente=%s.",
+                tipo_error,
+                resultado.get("agente") or "no disponible",
+            )
+            respuesta = "Hubo un problema, intenta de nuevo"
+        if TELEGRAM_TOKEN:
+            respuesta = respuesta.replace(TELEGRAM_TOKEN, "[REDACTADO]")
+        await _enviar_mensaje_telegram(chat_id, respuesta)
+    except Exception as error:
+        _registro.error("Error procesando la actualización de Telegram (%s).", type(error).__name__)
+
+
+@app.post("/telegram", include_in_schema=False)
+async def telegram(
+    tareas: BackgroundTasks,
+    actualizacion: Any = Body(...),
+    secreto: str | None = Header(default=None, alias="X-Telegram-Bot-Api-Secret-Token"),
+) -> dict[str, bool]:
+    """Valida el webhook y delega su trabajo a una tarea en segundo plano."""
+    if not secreto or not TELEGRAM_SECRET or not compare_digest(secreto, TELEGRAM_SECRET):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Acceso no autorizado",
+        )
+    tareas.add_task(_procesar_actualizacion_telegram, actualizacion)
     return {"ok": True}
