@@ -1,0 +1,110 @@
+[
+  {
+    "id": "p001",
+    "titulo": "Duna: Parte Dos",
+    "genero": "Ciencia ficción",
+    "clasificacion": "14 años",
+    "duracion_minutos": 166,
+    "funciones": [
+      {
+        "fecha": "2026-11-10",
+        "hora": "16:30",
+        "sala": 4,
+        "formato": "IMAX",
+        "idioma": "Inglés",
+        "subtitulos": "Español",
+        "precio": 6500
+      },
+      {
+        "fecha": "2026-11-10",
+        "hora": "19:45",
+        "sala": 4,
+        "formato": "IMAX",
+        "idioma": "Inglés",
+        "subtitulos": "Español",
+        "precio": 6500
+      },
+      {
+        "fecha": "2026-11-10",
+        "hora": "22:30",
+        "sala": 2,
+        "formato": "2D",
+        "idioma": "Inglés",
+        "subtitulos": "Español",
+        "precio": 5000
+      }
+    ]
+  },
+  {
+    "id": "p002",
+    "titulo": "Robot Salvaje",
+    "genero": "Animación",
+    "clasificacion": "Todo espectador",
+    "duracion_minutos": 102,
+    "funciones": [
+      {
+        "fecha": "2026-11-10",
+        "hora": "15:00",
+        "sala": 1,
+        "formato": "2D",
+        "idioma": "Español",
+        "subtitulos": "No aplica",
+        "precio": 4500
+      },
+      {
+        "fecha": "2026-11-10",
+        "hora": "17:20",
+        "sala": 1,
+        "formato": "2D",
+        "idioma": "Español",
+        "subtitulos": "No aplica",
+        "precio": 4500
+      }
+    ]
+  },
+  {
+    "id": "p003",
+    "titulo": "Misterio en la Niebla",
+    "genero": "Suspenso",
+    "clasificacion": "16 años",
+    "duracion_minutos": 118,
+    "funciones": [
+      {
+        "fecha": "2026-11-10",
+        "hora": "18:10",
+        "sala": 5,
+        "formato": "2D",
+        "idioma": "Español",
+        "subtitulos": "No aplica",
+        "precio": 5000
+      },
+      {
+        "fecha": "2026-11-10",
+        "hora": "21:00",
+        "sala": 5,
+        "formato": "2D",
+        "idioma": "Español",
+        "subtitulos": "No aplica",
+        "precio": 5000
+      }
+    ]
+  },
+  {
+    "id": "p004",
+    "titulo": "El Último Viaje",
+    "genero": "Drama",
+    "clasificacion": "Todo espectador",
+    "duracion_minutos": 124,
+    "funciones": [
+      {
+        "fecha": "2026-11-10",
+        "hora": "20:15",
+        "sala": 3,
+        "formato": "2D",
+        "idioma": "Español",
+        "subtitulos": "No aplica",
+        "precio": 5000
+      }
+    ]
+  }
+]

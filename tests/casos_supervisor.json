@@ -1,0 +1,20 @@
+[
+  {"mensaje": "¿Qué tiendas de ropa para mujer hay en el mall?", "esperado": "ninguno"},
+  {"mensaje": "¿Qué ofertas hay en cosméticos?", "esperado": "Agente de Anggie"},
+  {"mensaje": "Busco una tienda de zapatos en el centro comercial", "esperado": "Agente de Anggie"},
+  {"mensaje": "¿Qué películas están en cartelera?", "esperado": "Agente de Enrique"},
+  {"mensaje": "¿A qué hora empieza la próxima función de cine?", "esperado": "Agente de Enrique"},
+  {"mensaje": "¿Tienen comida para gatos?", "esperado": "Agente de Algomarket"},
+  {"mensaje": "¿Hay ofertas en el supermercado?", "esperado": "Agente de Algomarket"},
+  {"mensaje": "¿Cuánto cuesta el arroz y el aceite?", "esperado": "Agente de Algomarket"},
+  {"mensaje": "¿Dónde puedo almorzar en el mall?", "esperado": "Agente de Christian"},
+  {"mensaje": "¿Qué opciones de comida hay en el patio de comidas?", "esperado": "Agente de Christian"},
+  {"mensaje": "¿Qué vuelos hay de Santiago a Lima mañana?", "esperado": "Agente de viajes"},
+  {"mensaje": "Busca un hotel en Lima para dos noches", "esperado": "Agente de viajes"},
+  {"mensaje": "Algo peruano en Lima, zona Miraflores", "esperado": "Agente de restaurantes"},
+  {"mensaje": "Recomiéndame un restaurante italiano en Santiago", "esperado": "Agente de restaurantes"},
+  {"mensaje": "¿Qué hora es en Tokio?", "esperado": "ninguno"},
+  {"mensaje": "Explícame cómo funciona la fotosíntesis", "esperado": "ninguno"},
+  {"mensaje": "¿Cuál es la capital de Islandia?", "esperado": "ninguno"},
+  {"mensaje": "¿Cómo se calcula el área de un triángulo?", "esperado": "ninguno"}
+]

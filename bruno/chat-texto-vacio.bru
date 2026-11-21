@@ -1,0 +1,28 @@
+meta {
+  name: chat-texto-vacio
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/chat
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{apiKey}}
+}
+
+body:json {
+  {
+    "user_id": "usuario-texto-vacio",
+    "texto": "   "
+  }
+}
+
+tests {
+  test("El texto compuesto solo por espacios devuelve 422", function() {
+    expect(res.getStatus()).to.equal(422);
+  });
+}

@@ -1,0 +1,22 @@
+meta {
+  name: memoria-2
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/chat
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{apiKey}}
+}
+
+body:json {
+  {
+    "user_id": "prueba-memoria",
+    "texto": "¿Y qué tallas tiene?"
+  }
+}

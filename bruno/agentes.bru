@@ -1,0 +1,15 @@
+meta {
+  name: agentes
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/agentes
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{apiKey}}
+}

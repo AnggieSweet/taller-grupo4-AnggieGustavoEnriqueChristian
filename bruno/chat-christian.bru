@@ -1,0 +1,22 @@
+meta {
+  name: chat-christian
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/chat
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{apiKey}}
+}
+
+body:json {
+  {
+    "user_id": "usuario-christian",
+    "texto": "¿Dónde puedo almorzar en el mall?"
+  }
+}

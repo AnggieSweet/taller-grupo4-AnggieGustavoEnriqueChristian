@@ -1,0 +1,22 @@
+meta {
+  name: chat-viajes
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/chat
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{apiKey}}
+}
+
+body:json {
+  {
+    "user_id": "usuario-viajes",
+    "texto": "¿Qué vuelos hay de Santiago a Lima el 2026-12-20?"
+  }
+}

@@ -1,0 +1,24 @@
+meta {
+  name: chat-sin-clave
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/chat
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "user_id": "usuario-sin-clave",
+    "texto": "¿Qué ofertas hay en cosméticos?"
+  }
+}
+
+tests {
+  test("La petición sin clave devuelve 401", function() {
+    expect(res.getStatus()).to.equal(401);
+  });
+}
