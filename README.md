@@ -3,9 +3,9 @@
 ## Integrantes y agentes
 
 - Anggie Merlo | Agente de tiendas del mall (Calzado Paso Firme, Cosmética Brillo Natural, Mascotas Huella Feliz, Muebles Casa Serena). Integración de los agentes del grupo en el proyecto base y ajustes al coordinador. | API FastAPI protegida con X-API-Key, memoria por usuario, pruebas del supervisor (pytest), colección Bruno, preparación de GitHub y README.
-- Enrique Molina | Agente de cine (cartelera y horarios). | [completar] |
-- Gustavo Hormazabal| Agente AlgoMarket (supermercado). | [completar] |
-- Christian Vasquez | Agente de [completar: patio de comidas u otro]. | [completar] |
+- Enrique Molina | Agente de cine (cartelera y horarios), puerto 8004. Grafo LangGraph con las herramientas `consultar_cartelera` (funciones por fecha, película, formato 2D/IMAX e idioma) y `buscar_funciones` (horarios, salas y precios de una película), sobre la cartelera de ejemplo en `data/cartelera.json`. | Corrección del manejo de fechas: el agente conoce la fecha de hoy y entiende "mañana" o "el sábado". Timeout del modelo y límite de pasos según `AGENTS.md`. Script `scripts/configurar_clave.py` para guardar `GOOGLE_API_KEY` en `.env` sin mostrarla.
+- Gustavo Hormazabal | Agente AlgoMarket (supermercado), puerto 8005. Grafo LangGraph con las herramientas `buscar_producto` (precio en CLP, stock, pasillo y oferta vigente de leche, pan, arroz, aceite, detergente y bebidas) y `horario_supermercado` (apertura y cierre según el día). | Ficha A2A con sus límites: no vende, no reserva ni calcula despachos, y no responde sobre otras tiendas, restaurantes, cine ni estacionamiento.
+- Christian Vasquez | Agente del patio de comidas "Terraza Sabores" (Mall Portal Nativo), puerto 8006. Herramientas `buscar_platos` (locales, platos, precios, alérgenos, dietas y si el local está abierto), `promociones_vigentes` (validadas por día y hora), `info_patio` (pagos, Club Nativo, Wi-Fi, baños, zona infantil, estacionamiento) y `calcular_total` (total de un pedido en CLP). | Guardias de entrada y salida en `src/comun/guardias.py` (inyección de instrucciones, datos personales, secretos y datos no respaldados), configuración central en `src/config.py` y fecha y hora actuales en el prompt.
 
 ## Opción elegida
 
