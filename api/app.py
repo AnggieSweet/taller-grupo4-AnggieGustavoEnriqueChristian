@@ -129,6 +129,15 @@ def _redactar_secretos(texto: str) -> str:
         limpio = limpio.replace(secreto, "[REDACTADO]")
     return limpio
 
+_PREFIJOS_FALLO_AGENTE = (
+    "no se pudo contactar al agente:",
+    "no se pudo procesar el mensaje:",
+)
+
+
+def _es_fallo_de_agente(texto: str) -> bool:
+    """Indica si el texto es un mensaje de falla de un agente y no una respuesta."""
+    return texto.strip().lower().startswith(_PREFIJOS_FALLO_AGENTE)
 
 def _contiene_traza(texto: str) -> bool:
     return bool(
@@ -251,7 +260,7 @@ async def chat(peticion: ChatRequest) -> ChatResponse:
 
     respuesta = str(resultado.get("respuesta", ""))
     detalle_fallo = _limpiar_detalle(respuesta)
-    if detalle_fallo.lower().startswith("no se pudo contactar al agente:"):
+    if _es_fallo_de_agente(detalle_fallo):
         _registro.error("Fallo del agente remoto: %s", detalle_fallo)
         if any(termino in detalle_fallo.casefold() for termino in ("tiempo de espera", "timeout", "timed out")):
             raise HTTPException(
@@ -328,9 +337,9 @@ async def _procesar_actualizacion_telegram(actualizacion: Any) -> None:
             return
 
         respuesta = str(resultado.get("respuesta", ""))
-        if not respuesta or respuesta.startswith("No se pudo contactar al agente:"):
+        if not respuesta or _es_fallo_de_agente(respuesta):
             tipo_error = "RespuestaVacia"
-            if respuesta.startswith("No se pudo contactar al agente:"):
+            if _es_fallo_de_agente(respuesta):
                 tipo_error = (
                     "TimeoutError"
                     if any(palabra in respuesta.casefold() for palabra in ("tiempo de espera", "timeout", "timed out"))
