@@ -49,7 +49,7 @@ El túnel de `cloudflared` cambia de URL en cada arranque; es temporal y no cons
 
 ## Requisitos e instalación
 
-Se recomienda Python **3.13** (el entorno del proyecto se probó con esa versión) y Windows PowerShell. Copia `.env.example` a `.env` y configura las credenciales localmente; no compartas `.env`.
+Se recomienda Python **3.13** (el entorno del proyecto se probó con esa versión) y Windows PowerShell. En Mac o Linux sigue la sección [Mac o Linux](#mac-o-linux). Copia `.env.example` a `.env` y configura las credenciales localmente; no compartas `.env`.
 
 ```powershell
 py -3.13 -m venv .venv
@@ -142,4 +142,70 @@ La variable `apiKey` se lee de `bruno/.env` con `{{process.env.API_KEY}}`; no es
 
 ## Detener
 
-En cada terminal donde corre un agente o la API, pulsa **Ctrl+C**.
+En cada terminal donde corre un agente o la API, pulsa **Ctrl+C**. Si usaste `iniciar.ps1`, ejecuta `.\detener.ps1`.
+
+## Mac o Linux
+
+Los scripts `instalar.sh`, `iniciar.sh` y `detener.sh` equivalen a los `.ps1` de Windows. Se probaron en macOS con Python 3.12 y deberían funcionar igual en Linux.
+
+**Requisitos:** Python 3.13 o 3.12 con `venv` (Mac: `brew install python@3.13`; Debian/Ubuntu: `sudo apt install python3.13 python3.13-venv`), `curl` y conexión a internet (Gemini y, si se usa, Telegram).
+
+1. Instala los entornos `.venv` y `.venv-crew` y crea `.env` desde `.env.example`:
+
+   ```bash
+   bash instalar.sh
+   ```
+
+   Para usar un Python concreto: `PYTHON=/ruta/a/python3.13 bash instalar.sh`.
+
+2. Configura `.env`. Guarda `GOOGLE_API_KEY` sin que se vea en pantalla:
+
+   ```bash
+   .venv/bin/python -m scripts.configurar_clave
+   ```
+
+   Genera una clave para `API_KEY` y pégala en `.env`:
+
+   ```bash
+   .venv/bin/python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+
+3. Levanta los seis agentes y la API en segundo plano. El script espera a que cada servicio responda y deja los registros en `logs/<servicio>.log`:
+
+   ```bash
+   bash iniciar.sh
+   ```
+
+4. Prueba con Swagger en [http://localhost:8010/docs](http://localhost:8010/docs) (botón **Authorize**), o con `curl`. Carga la clave desde `.env` para no escribirla en la terminal:
+
+   ```bash
+   export API_KEY="$(grep '^API_KEY=' .env | cut -d= -f2-)"
+   ```
+
+   Acceso permitido (200):
+
+   ```bash
+   curl -s -X POST http://localhost:8010/chat -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"user_id": "usuario-123", "texto": "¿Cuánto cuesta la leche en AlgoMarket?"}'
+   ```
+
+   Acceso rechazado (401):
+
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8010/chat -H "Content-Type: application/json" -d '{"user_id": "usuario-123", "texto": "hola"}'
+   ```
+
+5. Pruebas automatizadas (se indica la carpeta `tests` porque pytest también intenta leer `test_supervisor.txt` de la raíz y falla):
+
+   ```bash
+   .venv/bin/python -m pytest tests
+   ```
+
+6. Telegram (opcional): con los servicios arriba y `TELEGRAM_*` configurado en `.env`, ejecuta `.venv/bin/python -m scripts.telegram_local` y escribe al bot. Requiere `cloudflared` (`brew install cloudflared`). Ctrl+C borra el webhook y cierra el túnel.
+
+7. Detén todos los servicios:
+
+   ```bash
+   bash detener.sh
+   ```
+
+Si un puerto está ocupado, `iniciar.sh` lo avisa y no levanta ese servicio. Si quedó una ejecución anterior, `bash detener.sh` borra `logs/pids.txt` y permite iniciar otra vez.
