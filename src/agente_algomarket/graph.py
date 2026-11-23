@@ -10,7 +10,7 @@ from src.agente_algomarket.prompts import SYSTEM_PROMPT
 load_dotenv()
 
 modelo_nombre = os.getenv("MODELO", "gemini-3.5-flash-lite")
-modelo = ChatGoogleGenerativeAI(model=modelo_nombre)
+modelo = ChatGoogleGenerativeAI(model=modelo_nombre, request_timeout=30)
 
 memoria = MemorySaver()
 
@@ -22,8 +22,26 @@ graph = create_agent(
 )
 
 
+MAX_PASOS_AGENTE = int(os.getenv("MAX_PASOS_AGENTE", "12"))
+
+
 def _config(context_id: str) -> dict:
-    return {"configurable": {"thread_id": context_id}}
+    return {"configurable": {"thread_id": context_id}, "recursion_limit": MAX_PASOS_AGENTE * 2}
+
+
+def _texto(mensaje) -> str:
+    """Devuelve solo el texto de un mensaje.
+
+    Gemini puede responder con una lista de partes ({'type': 'text', 'text': ..., 'extras': ...});
+    .text las une y descarta los datos internos como la firma.
+    """
+    if isinstance(mensaje, dict):
+        contenido = mensaje.get("content", "")
+        return contenido if isinstance(contenido, str) else str(contenido)
+    texto = getattr(mensaje, "text", None)
+    if isinstance(texto, str):
+        return texto
+    return str(getattr(mensaje, "content", "") or "")
 
 
 async def responder(texto: str, context_id: str) -> str:
@@ -33,11 +51,7 @@ async def responder(texto: str, context_id: str) -> str:
     mensajes = resultado.get("messages", [])
     if not mensajes:
         return ""
-    ultimo = mensajes[-1]
-    contenido = getattr(ultimo, "content", None)
-    if contenido is None and isinstance(ultimo, dict):
-        contenido = ultimo.get("content", "")
-    return str(contenido) if contenido is not None else ""
+    return _texto(mensajes[-1])
 
 
 def saltos(texto: str) -> None:
@@ -56,9 +70,9 @@ def saltos(texto: str) -> None:
                         nombre_tool = getattr(m, "name", None) or (m.get("name") if isinstance(m, dict) else None)
                         print(f"   🛠️  Herramienta llamada: {nombre_tool}")
                     elif tipo in ("ai", "assistant"):
-                        contenido = getattr(m, "content", None) or (m.get("content") if isinstance(m, dict) else "")
+                        contenido = _texto(m)
                         if contenido:
-                            print(f"   💬 Respuesta: {str(contenido)[:200]}")
+                            print(f"   💬 Respuesta: {contenido[:200]}")
     except Exception as e:
         print(f"Error al ejecutar el agente: {e}")
         return
