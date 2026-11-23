@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from src import config
+from src.comun.modelo import crear_llm_gemini
 
 from .prompts import SYSTEM_PROMPT
 from .tools import TOOLS
@@ -31,11 +30,7 @@ def _prompt_sistema() -> str:
 
 def crear_agente():
     """Crea y compila el agente con memoria en el proceso."""
-    model = ChatGoogleGenerativeAI(
-        model=os.getenv("MODELO", "gemini-3.5-flash-lite"),
-        temperature=0,
-        request_timeout=30,
-    ).bind_tools(TOOLS)
+    model = crear_llm_gemini(temperatura=0.0, timeout=30.0, permitir_sin_clave_al_importar=True).bind_tools(TOOLS)
 
     def llamar_modelo(state: MessagesState) -> dict[str, Any]:
         mensajes = [{"role": "system", "content": _prompt_sistema()}, *state["messages"]]
@@ -64,6 +59,7 @@ def _agente():
 
 def responder(texto: str, context_id: str = "enrique-local") -> str:
     """Responde una pregunta conservando el contexto indicado."""
+    config.exigir_clave()
     resultado = _agente().invoke(
         {"messages": [{"role": "user", "content": texto}]},
         {"configurable": {"thread_id": context_id}, "recursion_limit": LIMITE_PASOS},
@@ -82,6 +78,7 @@ def responder(texto: str, context_id: str = "enrique-local") -> str:
 
 def saltos(texto: str, context_id: str = "enrique-local") -> list[str]:
     """Devuelve una descripción simple de los nodos visitados."""
+    config.exigir_clave()
     pasos: list[str] = []
     for evento in _agente().stream(
         {"messages": [{"role": "user", "content": texto}]},

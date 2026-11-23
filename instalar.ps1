@@ -1,8 +1,30 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $raiz = $PSScriptRoot
+
+function Obtener-ComandoPython {
+    foreach ($candidato in @(
+        @{ Exe = 'py'; Args = @('-3.13') },
+        @{ Exe = 'py'; Args = @('-3.12') },
+        @{ Exe = 'python'; Args = @() },
+        @{ Exe = 'python3'; Args = @() }
+    )) {
+        $cmd = Get-Command $candidato.Exe -ErrorAction SilentlyContinue
+        if ($cmd) {
+            try {
+                $ver = & $candidato.Exe @($candidato.Args + @('-c', 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')) 2>$null
+                if ($LASTEXITCODE -eq 0 -and $ver -match '^3\.(12|13|14)$') {
+                    return $candidato
+                }
+            }
+            catch {}
+        }
+    }
+    throw 'No se encontró Python 3.12 o 3.13 en el sistema. Instala Python >= 3.12 y vuelve a intentarlo.'
+}
 
 function Instalar-Entorno {
     param(
+        [hashtable]$PythonBase,
         [string]$RutaEntorno,
         [string]$ArchivoRequisitos
     )
@@ -10,9 +32,9 @@ function Instalar-Entorno {
     $python = Join-Path $RutaEntorno 'Scripts\python.exe'
     if (-not (Test-Path -LiteralPath $python)) {
         Write-Host "Creando $RutaEntorno..."
-        & py -3.13 -m venv $RutaEntorno
+        & $PythonBase.Exe @($PythonBase.Args + @('-m', 'venv', $RutaEntorno))
         if ($LASTEXITCODE -ne 0) {
-            throw "No se pudo crear $RutaEntorno. Comprueba que Python 3.13 esté instalado."
+            throw "No se pudo crear $RutaEntorno."
         }
     }
 
@@ -24,8 +46,9 @@ function Instalar-Entorno {
 }
 
 try {
-    Instalar-Entorno -RutaEntorno (Join-Path $raiz '.venv') -ArchivoRequisitos 'requirements.txt'
-    Instalar-Entorno -RutaEntorno (Join-Path $raiz '.venv-crew') -ArchivoRequisitos 'requirements-crew.txt'
+    $pyBase = Obtener-ComandoPython
+    Instalar-Entorno -PythonBase $pyBase -RutaEntorno (Join-Path $raiz '.venv') -ArchivoRequisitos 'requirements.txt'
+    Instalar-Entorno -PythonBase $pyBase -RutaEntorno (Join-Path $raiz '.venv-crew') -ArchivoRequisitos 'requirements-crew.txt'
 
     $envEjemplo = Join-Path $raiz '.env.example'
     $envLocal = Join-Path $raiz '.env'
@@ -42,7 +65,7 @@ try {
     }
 
     Write-Host ''
-    Write-Host 'Completa en .env las variables obligatorias: GOOGLE_API_KEY y API_KEY.'
+    Write-Host 'Completa en .env las variables obligatorias: GOOGLE_API_KEY (o USAR_OAUTH=true) y API_KEY.'
     Write-Host 'Opcionales para Telegram: TELEGRAM_TOKEN, TELEGRAM_SECRET y TELEGRAM_PERMITIDOS.'
 }
 catch {

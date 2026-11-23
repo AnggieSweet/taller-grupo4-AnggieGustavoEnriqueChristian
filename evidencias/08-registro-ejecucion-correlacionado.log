@@ -1,0 +1,32 @@
+2026-11-22 22:15:04,082 INFO [api.mall] Catálogo A2A cargado: 6 agente(s).
+INFO:     127.0.0.1:63189 - "GET /agentes HTTP/1.1" 200 OK
+2026-11-22 22:15:33,968 WARNING [api.mall] Control de acceso rechazado (401) · motivo=sin_clave
+INFO:     127.0.0.1:63189 - "POST /chat HTTP/1.1" 401 Unauthorized
+2026-11-22 22:15:33,970 WARNING [api.mall] Control de acceso rechazado (401) · motivo=clave_invalida
+INFO:     127.0.0.1:63189 - "POST /chat HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:63189 - "POST /chat HTTP/1.1" 422 Unprocessable Entity
+2026-11-22 22:15:33,973 WARNING [api.mall] Entrada bloqueada · req_id=req_c9559193 · user_id=docente-1 · categoria=inyeccion
+INFO:     127.0.0.1:63189 - "POST /chat HTTP/1.1" 400 Bad Request
+2026-11-22 22:15:43,508 INFO [api.mall] Consulta completada · req_id=req_5e6b7fdc · user_id=docente-multi · decision=Agente de Christian + Agente de Algomarket · a2a=[Agente de Christian(2964ms), Agente de Algomarket(1970ms)] · total=9532ms
+INFO:     127.0.0.1:63189 - "POST /chat HTTP/1.1" 200 OK
+2026-11-22 22:15:45,142 INFO [api.mall] Consulta completada · req_id=req_3e352c09 · user_id=docente-hotel · decision=Agente de viajes · a2a=[sin_llamada_remota] · total=1631ms
+INFO:     127.0.0.1:63189 - "POST /chat HTTP/1.1" 200 OK
+2026-11-22 22:15:48,705 INFO [api.mall] Consulta completada · req_id=req_72c8f40c · user_id=docente-mem · decision=Agente de Anggie · a2a=[Agente de Anggie(2275ms)] · total=3558ms
+INFO:     127.0.0.1:63189 - "POST /chat HTTP/1.1" 200 OK
+2026-11-22 22:15:52,257 INFO [api.mall] Consulta completada · req_id=req_52c4bdfb · user_id=docente-mem · decision=Agente de Anggie · a2a=[Agente de Anggie(2210ms)] · total=3548ms
+INFO:     127.0.0.1:63189 - "POST /chat HTTP/1.1" 200 OK
+2026-11-22 22:15:56,332 INFO [api.mall] Consulta completada · req_id=req_82f08a49 · user_id=docente-crew · decision=Agente de restaurantes · a2a=[Agente de restaurantes(2557ms)] · total=4070ms
+INFO:     127.0.0.1:63189 - "POST /chat HTTP/1.1" 200 OK
+2026-11-22 22:18:19,493 WARNING [api.mall] Control de acceso rechazado (401) · motivo=sin_clave
+INFO:     127.0.0.1:63317 - "POST /chat HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:63317 - "GET /agentes HTTP/1.1" 200 OK
+2026-11-22 22:18:28,307 INFO [api.mall] Consulta completada · req_id=req_fb7562ca · user_id=docente-a2a-multi · decision=Agente de Christian + Agente de Algomarket · a2a=[Agente de Christian(2529ms), Agente de Algomarket(2465ms)] · total=6208ms
+INFO:     127.0.0.1:63317 - "POST /chat HTTP/1.1" 200 OK
+2026-11-22 22:18:30,289 INFO [api.mall] Consulta completada · req_id=req_c28f3359 · user_id=docente-faltan-datos · decision=Agente de viajes · a2a=[sin_llamada_remota] · total=1298ms
+INFO:     127.0.0.1:63317 - "POST /chat HTTP/1.1" 200 OK
+2026-11-22 22:18:32,855 WARNING [api.mall] Entrada bloqueada · req_id=req_c3c1f5c7 · user_id=docente-seguridad · categoria=inyeccion
+INFO:     127.0.0.1:63317 - "POST /chat HTTP/1.1" 400 Bad Request
+INFO:     91.108.5.49:0 - "POST /telegram HTTP/1.1" 200 OK
+2026-11-22 22:42:52,523 INFO [api.mall] Telegram consulta completada · req_id=tg_fdbc0992 · chat=***6562 · decision=Agente de Christian · a2a=[Agente de Christian(2718ms)] · total=8797ms
+INFO:     91.108.5.49:0 - "POST /telegram HTTP/1.1" 200 OK
+2026-11-22 22:51:11,015 INFO [api.mall] Telegram consulta completada · req_id=tg_975337c9 · chat=***6562 · decision=Agente de Christian · a2a=[Agente de Christian(2729ms)] · total=4495ms

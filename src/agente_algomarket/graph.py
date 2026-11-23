@@ -1,17 +1,15 @@
-import os
-import asyncio
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
-from src.agente_algomarket.tools import buscar_producto, horario_supermercado
+
+from src import config
 from src.agente_algomarket.prompts import SYSTEM_PROMPT
+from src.agente_algomarket.tools import buscar_producto, horario_supermercado
+from src.comun.modelo import crear_llm_gemini
 
 load_dotenv()
 
-modelo_nombre = os.getenv("MODELO", "gemini-3.5-flash-lite")
-modelo = ChatGoogleGenerativeAI(model=modelo_nombre)
-
+modelo = crear_llm_gemini(timeout=30.0, permitir_sin_clave_al_importar=True)
 memoria = MemorySaver()
 
 graph = create_agent(
@@ -23,13 +21,14 @@ graph = create_agent(
 
 
 def _config(context_id: str) -> dict:
-    return {"configurable": {"thread_id": context_id}}
+    return {"configurable": {"thread_id": context_id}, "recursion_limit": config.MAX_PASOS_AGENTE * 2}
 
 
 async def responder(texto: str, context_id: str) -> str:
     """Envía el texto al grafo y devuelve la última respuesta del agente."""
-    config = _config(context_id)
-    resultado = await graph.ainvoke({"messages": [{"role": "user", "content": texto}]}, config=config)
+    config.exigir_clave()
+    cfg = _config(context_id)
+    resultado = await graph.ainvoke({"messages": [{"role": "user", "content": texto}]}, config=cfg)
     mensajes = resultado.get("messages", [])
     if not mensajes:
         return ""
@@ -37,15 +36,18 @@ async def responder(texto: str, context_id: str) -> str:
     contenido = getattr(ultimo, "content", None)
     if contenido is None and isinstance(ultimo, dict):
         contenido = ultimo.get("content", "")
+    if isinstance(contenido, list):
+        return "\n".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in contenido).strip()
     return str(contenido) if contenido is not None else ""
 
 
 def saltos(texto: str) -> None:
     """Ejecuta el grafo con stream y muestra cada nodo y herramienta por la que pasa."""
-    config = _config("saltos-demo")
+    config.exigir_clave()
+    cfg = _config("saltos-demo")
     total = 0
     try:
-        for paso in graph.stream({"messages": [{"role": "user", "content": texto}]}, config=config, stream_mode="updates"):
+        for paso in graph.stream({"messages": [{"role": "user", "content": texto}]}, config=cfg, stream_mode="updates"):
             for nodo, actualizacion in paso.items():
                 total += 1
                 print(f"→ Nodo: {nodo}")

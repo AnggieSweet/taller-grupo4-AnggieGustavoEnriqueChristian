@@ -1,6 +1,5 @@
 """Grafo LangGraph del agente de Anggie."""
 
-import os
 from collections.abc import Iterable
 from typing import Any
 
@@ -8,22 +7,15 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 
+from src import config
 from src.agente_anggie.prompts import SYSTEM_PROMPT
 from src.agente_anggie.tools import buscar_productos, ver_ofertas
+from src.comun.modelo import crear_llm_gemini
 
 
 load_dotenv()
-MODELO = os.getenv("MODELO", "gemini-3.5-flash-lite")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-_modelo = ChatGoogleGenerativeAI(
-    model=MODELO,
-    api_key=GOOGLE_API_KEY or "CLAVE_NO_CONFIGURADA",
-    request_timeout=30,
-)
 
 
 class ForzarConsultaDeHerramienta(AgentMiddleware):
@@ -40,13 +32,18 @@ class ForzarConsultaDeHerramienta(AgentMiddleware):
         return await handler(request)
 
 
-graph = create_agent(
-    model=_modelo,
-    tools=[buscar_productos, ver_ofertas],
-    system_prompt=SYSTEM_PROMPT,
-    checkpointer=MemorySaver(),
-    middleware=[ForzarConsultaDeHerramienta()],
-)
+def _construir_grafo(permitir_sin_clave: bool = True):
+    modelo = crear_llm_gemini(timeout=30.0, permitir_sin_clave_al_importar=permitir_sin_clave)
+    return create_agent(
+        model=modelo,
+        tools=[buscar_productos, ver_ofertas],
+        system_prompt=SYSTEM_PROMPT,
+        checkpointer=MemorySaver(),
+        middleware=[ForzarConsultaDeHerramienta()],
+    )
+
+
+graph = _construir_grafo(permitir_sin_clave=True)
 
 
 def _texto_mensaje(mensaje: Any) -> str:
@@ -63,11 +60,10 @@ def _texto_mensaje(mensaje: Any) -> str:
 
 async def responder(texto: str, context_id: str) -> str:
     """Invoca el agente y conserva memoria asociada al identificador de contexto."""
-    if not GOOGLE_API_KEY:
-        raise RuntimeError("Falta GOOGLE_API_KEY; configura tu clave de Gemini en .env")
+    config.exigir_clave()
     resultado = await graph.ainvoke(
         {"messages": [{"role": "user", "content": texto}]},
-        config={"configurable": {"thread_id": context_id}},
+        config={"configurable": {"thread_id": context_id}, "recursion_limit": config.MAX_PASOS_AGENTE * 2},
     )
     for mensaje in reversed(resultado.get("messages", [])):
         if isinstance(mensaje, AIMessage):
@@ -77,13 +73,12 @@ async def responder(texto: str, context_id: str) -> str:
 
 def saltos(texto: str) -> str:
     """Ejecuta el grafo e imprime nodos, herramientas y cantidad de saltos."""
-    if not GOOGLE_API_KEY:
-        raise RuntimeError("Falta GOOGLE_API_KEY; configura tu clave de Gemini en .env")
+    config.exigir_clave()
     cantidad_saltos = 0
     respuesta_final = ""
     eventos = graph.stream(
         {"messages": [{"role": "user", "content": texto}]},
-        config={"configurable": {"thread_id": "terminal-anggie"}},
+        config={"configurable": {"thread_id": "terminal-anggie"}, "recursion_limit": config.MAX_PASOS_AGENTE * 2},
         stream_mode="updates",
     )
     for evento in eventos:

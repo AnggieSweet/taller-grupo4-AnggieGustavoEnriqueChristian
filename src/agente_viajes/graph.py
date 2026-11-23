@@ -1,29 +1,23 @@
 """Grafo LangGraph del agente de viajes."""
 
 import asyncio
-import os
 from collections.abc import Iterable
 from typing import Any
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 
+from src import config
 from src.agente_viajes.prompts import SYSTEM_PROMPT
 from src.agente_viajes.tools import buscar_hoteles, buscar_vuelos
+from src.comun.modelo import crear_llm_gemini
 
 
 load_dotenv()
-MODELO = os.getenv("MODELO", "gemini-3.5-flash-lite")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-_modelo = ChatGoogleGenerativeAI(
-    model=MODELO,
-    api_key=GOOGLE_API_KEY or "CLAVE_NO_CONFIGURADA",
-    request_timeout=30,
-)
+_modelo = crear_llm_gemini(timeout=30.0, permitir_sin_clave_al_importar=True)
 graph = create_agent(
     model=_modelo,
     tools=[buscar_vuelos, buscar_hoteles],
@@ -46,11 +40,10 @@ def _texto_mensaje(mensaje: Any) -> str:
 
 async def responder(texto: str, context_id: str) -> str:
     """Invoca el agente conservando la memoria asociada al contexto."""
-    if not GOOGLE_API_KEY:
-        raise RuntimeError("Falta GOOGLE_API_KEY; configura tu clave de Gemini en .env")
+    config.exigir_clave()
     resultado = await graph.ainvoke(
         {"messages": [{"role": "user", "content": texto}]},
-        config={"configurable": {"thread_id": context_id}},
+        config={"configurable": {"thread_id": context_id}, "recursion_limit": config.MAX_PASOS_AGENTE * 2},
     )
     mensajes = resultado.get("messages", [])
     for mensaje in reversed(mensajes):
@@ -61,13 +54,12 @@ async def responder(texto: str, context_id: str) -> str:
 
 def saltos(texto: str) -> str:
     """Ejecuta el grafo e imprime nodos, herramientas y cantidad de saltos."""
-    if not GOOGLE_API_KEY:
-        raise RuntimeError("Falta GOOGLE_API_KEY; configura tu clave de Gemini en .env")
+    config.exigir_clave()
     saltos_totales = 0
     respuesta_final = ""
     eventos = graph.stream(
         {"messages": [{"role": "user", "content": texto}]},
-        config={"configurable": {"thread_id": "terminal-viajes"}},
+        config={"configurable": {"thread_id": "terminal-viajes"}, "recursion_limit": config.MAX_PASOS_AGENTE * 2},
         stream_mode="updates",
     )
 

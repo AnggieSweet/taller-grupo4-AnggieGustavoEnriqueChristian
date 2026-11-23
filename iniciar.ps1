@@ -1,4 +1,4 @@
-$env:PYTHONUTF8 = '1'
+﻿$env:PYTHONUTF8 = '1'
 $ErrorActionPreference = 'Stop'
 $raiz = $PSScriptRoot
 $archivoEnv = Join-Path $raiz '.env'
@@ -21,6 +21,35 @@ if (-not (Test-Path -LiteralPath $pythonGeneral) -or -not (Test-Path -LiteralPat
     exit 1
 }
 
+function Leer-VariablesEnv {
+    param([string]$Ruta)
+    $mapa = @{}
+    foreach ($linea in Get-Content -LiteralPath $Ruta -Encoding UTF8) {
+        $limpia = $linea.Trim()
+        if (-not $limpia -or $limpia.StartsWith('#')) { continue }
+        $idx = $limpia.IndexOf('=')
+        if ($idx -gt 0) {
+            $k = $limpia.Substring(0, $idx).Trim()
+            $v = $limpia.Substring($idx + 1).Trim()
+            $mapa[$k] = $v
+        }
+    }
+    return $mapa
+}
+
+function Obtener-PuertoUrl {
+    param([string]$Url, [int]$PorDefecto)
+    if ($Url -and $Url -match ':(\d+)(/|$)') {
+        return [int]$Matches[1]
+    }
+    return $PorDefecto
+}
+
+$varsEnv = Leer-VariablesEnv -Ruta $archivoEnv
+$puertoApi = if ($env:PORT) { [int]$env:PORT } elseif ($varsEnv['PORT']) { [int]$varsEnv['PORT'] } elseif ($varsEnv['API_PUERTO']) { [int]$varsEnv['API_PUERTO'] } else { 8010 }
+$hostApi = if ($varsEnv['API_HOST']) { $varsEnv['API_HOST'] } else { '127.0.0.1' }
+$hostChequeoApi = if ($hostApi -eq '0.0.0.0') { '127.0.0.1' } else { $hostApi }
+
 New-Item -ItemType Directory -Path $directorioLogs -Force | Out-Null
 Set-Content -LiteralPath $archivoPids -Value '' -Encoding ASCII
 $fallidos = New-Object 'System.Collections.Generic.List[string]'
@@ -35,6 +64,8 @@ function Iniciar-Servicio {
         [string]$Nombre,
         [string]$Python,
         [string]$Modulo,
+        [string]$HostEscucha,
+        [string]$HostSalud,
         [int]$Puerto,
         [string]$RutaSalud
     )
@@ -49,7 +80,7 @@ function Iniciar-Servicio {
 
     $pythonSeguro = Escapar-CadenaPowerShell $Python
     $logSeguro = Escapar-CadenaPowerShell $archivoLog
-    $comando = "& '$pythonSeguro' -m uvicorn $Modulo --host 127.0.0.1 --port $Puerto *>> '$logSeguro'"
+    $comando = "& '$pythonSeguro' -m uvicorn $Modulo --host $HostEscucha --port $Puerto *>> '$logSeguro'"
     $codificado = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($comando))
 
     try {
@@ -67,7 +98,7 @@ function Iniciar-Servicio {
 
     Add-Content -LiteralPath $archivoPids -Value ($Nombre + '|' + $proceso.Id) -Encoding ASCII
     Write-Host "Esperando $Nombre en el puerto $Puerto..."
-    $url = "http://127.0.0.1:$Puerto$RutaSalud"
+    $url = "http://${HostSalud}:$Puerto$RutaSalud"
     $inicio = Get-Date
     $respondio = $false
     while (((Get-Date) - $inicio).TotalSeconds -lt 60) {
@@ -101,25 +132,26 @@ function Iniciar-Servicio {
 }
 
 $servicios = @(
-    @{ Nombre = 'viajes'; Python = $pythonGeneral; Modulo = 'src.agente_viajes.server:app'; Puerto = 8000; Ruta = '/.well-known/agent-card.json' },
-    @{ Nombre = 'anggie'; Python = $pythonGeneral; Modulo = 'src.agente_anggie.server:app'; Puerto = 8003; Ruta = '/.well-known/agent-card.json' },
-    @{ Nombre = 'enrique'; Python = $pythonGeneral; Modulo = 'src.agente_enrique.server:app'; Puerto = 8004; Ruta = '/.well-known/agent-card.json' },
-    @{ Nombre = 'algomarket'; Python = $pythonGeneral; Modulo = 'src.agente_algomarket.server:app'; Puerto = 8005; Ruta = '/.well-known/agent-card.json' },
-    @{ Nombre = 'christian'; Python = $pythonGeneral; Modulo = 'src.agente_christian.server:app'; Puerto = 8006; Ruta = '/.well-known/agent-card.json' },
-    @{ Nombre = 'restaurantes'; Python = $pythonCrew; Modulo = 'src.agente_restaurantes.server:app'; Puerto = 8001; Ruta = '/.well-known/agent-card.json' }
+    @{ Nombre = 'viajes'; Python = $pythonGeneral; Modulo = 'src.agente_viajes.server:app'; Puerto = (Obtener-PuertoUrl $varsEnv['URL_VIAJES'] 8000); Ruta = '/.well-known/agent-card.json' },
+    @{ Nombre = 'anggie'; Python = $pythonGeneral; Modulo = 'src.agente_anggie.server:app'; Puerto = (Obtener-PuertoUrl $varsEnv['URL_ANGGIE'] 8003); Ruta = '/.well-known/agent-card.json' },
+    @{ Nombre = 'enrique'; Python = $pythonGeneral; Modulo = 'src.agente_enrique.server:app'; Puerto = (Obtener-PuertoUrl $varsEnv['URL_ENRIQUE'] 8004); Ruta = '/.well-known/agent-card.json' },
+    @{ Nombre = 'algomarket'; Python = $pythonGeneral; Modulo = 'src.agente_algomarket.server:app'; Puerto = (Obtener-PuertoUrl $varsEnv['URL_ALGOMARKET'] 8005); Ruta = '/.well-known/agent-card.json' },
+    @{ Nombre = 'christian'; Python = $pythonGeneral; Modulo = 'src.agente_christian.server:app'; Puerto = (Obtener-PuertoUrl $varsEnv['URL_CHRISTIAN'] 8006); Ruta = '/.well-known/agent-card.json' },
+    @{ Nombre = 'restaurantes'; Python = $pythonCrew; Modulo = 'src.agente_restaurantes.server:app'; Puerto = (Obtener-PuertoUrl $varsEnv['URL_RESTAURANTES'] 8001); Ruta = '/.well-known/agent-card.json' }
 )
 
 foreach ($servicio in $servicios) {
     Iniciar-Servicio -Nombre $servicio.Nombre -Python $servicio.Python `
-        -Modulo $servicio.Modulo -Puerto $servicio.Puerto -RutaSalud $servicio.Ruta
+        -Modulo $servicio.Modulo -HostEscucha '127.0.0.1' -HostSalud '127.0.0.1' `
+        -Puerto $servicio.Puerto -RutaSalud $servicio.Ruta
 }
 
 Iniciar-Servicio -Nombre 'api' -Python $pythonGeneral -Modulo 'api.app:app' `
-    -Puerto 8010 -RutaSalud '/health'
+    -HostEscucha $hostApi -HostSalud $hostChequeoApi -Puerto $puertoApi -RutaSalud '/health'
 
 if ($fallidos.Count -gt 0) {
     Write-Warning ('Servicios que no respondieron: ' + ($fallidos -join ', '))
 }
 
-Write-Host 'Swagger: http://localhost:8010/docs'
+Write-Host "Swagger: http://localhost:$puertoApi/docs"
 Write-Host 'para detener: .\detener.ps1'
