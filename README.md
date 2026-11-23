@@ -40,18 +40,22 @@ Permite que un visitante del centro comercial (o viajero que conecta ciudades `S
   - Acceso permitido: cabecera `X-API-Key` válida → `HTTP 200`.
   - Acceso rechazado: sin cabecera o con clave inválida → `HTTP 401 ("Acceso no autorizado")`.
   - Validación de entrada: texto vacío/espacios → `HTTP 422`; intento de Prompt Injection o envío de RUT/tarjetas → `HTTP 400`.
+- **Agentes A2A (`POST /` de cada especialista, puertos `8000`–`8006`):**
+  - Si `AGENT_API_KEY` está definida, el endpoint JSON-RPC exige esa clave en `X-API-Key` o `Authorization: Bearer` → sin clave o con clave inválida `HTTP 401`; el coordinador la envía automáticamente en cada llamada A2A.
+  - La ficha `GET /.well-known/agent-card.json` y `GET /salud` siguen públicas para el descubrimiento.
+  - Sin `AGENT_API_KEY` los agentes quedan abiertos (solo aceptable en `127.0.0.1`) y lo advierten en su registro al arrancar. **Obligatoria** antes de exponerlos por túnel o en la nube; todos los integrantes que conecten agentes entre sí deben usar el mismo valor.
 - **Canal Telegram (`POST /telegram`):**
   - Webhook sin `X-Telegram-Bot-Api-Secret-Token` válido → `HTTP 401`.
   - Usuario cuyo `chat_id` no figura en `TELEGRAM_PERMITIDOS` → mensaje `"No autorizado. Tu chat_id es <id>"` sin invocar al modelo ni a los agentes.
 
 ### Gestión de secretos, costos y acciones con efectos reales
-- Ninguna clave real (`GOOGLE_API_KEY`, `API_KEY`, `TELEGRAM_TOKEN`, `TELEGRAM_SECRET`) se incluye en el código, repositorio, colección Bruno ni capturas. Se entregan plantillas `.env.example` y `bruno/.env.example` con valores ficticios.
+- Ninguna clave real (`GOOGLE_API_KEY`, `API_KEY`, `AGENT_API_KEY`, `TELEGRAM_TOKEN`, `TELEGRAM_SECRET`) se incluye en el código, repositorio, colección Bruno ni capturas. Se entregan plantillas `.env.example` y `bruno/.env.example` con valores ficticios.
 - **Dependencias externas e internet:** La ejecución real requiere salida HTTPS hacia Google Gemini (`generativelanguage.googleapis.com` con `GOOGLE_API_KEY`, o Vertex AI con `USAR_OAUTH=true`). Si se habilita el canal Telegram, requiere conexión hacia `api.telegram.org` y Cloudflare Quick Tunnel (`cloudflared`).
 - **Prevención de acciones accidentales y control de costos:** Ningún agente ejecuta cobros, reservas ni despachos reales. En Telegram solo pueden interactuar los `chat_id` de prueba declarados en `TELEGRAM_PERMITIDOS`; al cerrar `scripts/telegram_local.py` con `Ctrl+C`, el bloque `finally` ejecuta automáticamente `deleteWebhook` y apaga el túnel. Cada agente limita sus iteraciones (`MAX_PASOS_AGENTE=12`) y timeouts de red (`30s`–`75s`).
 
 ### Qué se prepara a mano antes de iniciar
 1. **Credencial de Gemini:** Obtén una clave en [Google AI Studio](https://aistudio.google.com/apikey) y guárdala en `GOOGLE_API_KEY` dentro de `.env` (puedes usar `python -m scripts.configurar_clave` para pegarla de forma oculta).
-2. **Claves de control de acceso local:** Genera valores aleatorios propios para `API_KEY` (y `TELEGRAM_SECRET` si usarás Telegram) con `python -c "import secrets; print(secrets.token_urlsafe(32))"` y colócalos en `.env` (y la misma `API_KEY` sin comillas en `bruno/.env` si usarás Bruno).
+2. **Claves de control de acceso local:** Genera valores aleatorios propios para `API_KEY`, `AGENT_API_KEY` (protege a los agentes A2A) y `TELEGRAM_SECRET` si usarás Telegram, con `python -c "import secrets; print(secrets.token_urlsafe(32))"` y colócalos en `.env` (y la misma `API_KEY` sin comillas en `bruno/.env` si usarás Bruno).
 3. **Solo si probarás el canal Telegram:**
    - Crea un bot de prueba propio conversando con [@BotFather](https://t.me/BotFather) (`/newbot`) y asigna el token entregado en `TELEGRAM_TOKEN` dentro de `.env`.
    - Instala `cloudflared` (`winget install --id Cloudflare.cloudflared` en Windows o `brew install cloudflared` en macOS).
@@ -63,6 +67,8 @@ Permite que un visitante del centro comercial (o viajero que conecta ciudades `S
 
 ### Versiones del entorno
 - **Python:** `>= 3.12` (probado en `Python 3.12` y `Python 3.13` sobre Windows 11; compatible también con macOS y Linux mediante `scripts/iniciar_todo.py`).
+- **Versión fijada:** `.python-version` declara `3.12` (mínimo soportado; la usan `uv`, `pyenv` y Heroku).
+- **Dependencias bloqueadas (lockfiles):** `requirements.lock.txt` y `requirements-crew.lock.txt` fijan la versión exacta de cada paquete (incluidas las transitivas) para Windows, macOS y Linux. Se generan desde los `requirements*.txt` con `uv pip compile requirements.txt --universal --python-version 3.12 -o requirements.lock.txt` (ídem para `-crew`) y deben regenerarse al cambiar una dependencia.
 - **Dos entornos virtuales aislados:** `.venv` para la API FastAPI, el coordinador y los 5 agentes LangGraph (`requirements.txt`), y `.venv-crew` para el agente de restaurantes construido con CrewAI (`requirements-crew.txt`).
 
 ### 4.1 Instalación
@@ -85,6 +91,8 @@ Copy-Item .env.example .env
 Copy-Item bruno/.env.example bruno/.env
 ```
 *(En macOS/Linux usa `.venv/bin/python` y `cp .env.example .env`).*
+
+**Instalación reproducible (mismas versiones exactas que usamos en las evidencias):** reemplaza `requirements.txt` por `requirements.lock.txt` y `requirements-crew.txt` por `requirements-crew.lock.txt` en los comandos anteriores.
 
 ### 4.2 Levantar todos los componentes (6 agentes A2A + API FastAPI)
 
@@ -149,7 +157,7 @@ Si prefieres levantar únicamente un componente puntual en su propia terminal (y
    } | ConvertTo-Json
    Invoke-RestMethod -Method Post -Uri 'http://localhost:8010/chat' -Headers $headers -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($cuerpo))
    ```
-3. **Suite automatizada `pytest` (27 pruebas: herramientas, fallos 502/504, seguridad 401/400/422, multi-agente, fidelidad CLP y 18 casos del supervisor):**
+3. **Suite automatizada `pytest` (35 pruebas: herramientas, fallos 502/504, seguridad 401/400/422, control de acceso A2A con `AGENT_API_KEY`, multi-agente, fidelidad CLP y 18 casos del supervisor):**
    ```powershell
    .\.venv\Scripts\python.exe -m pytest -v
    ```
@@ -207,6 +215,8 @@ Todas las capturas y registros en `evidencias/` provienen de nuestra **ejecució
 - **Cobertura geográfica acotada:** `Agente de viajes` cubre rutas y hoteles en `SCL`, `LIM`, `BOG` y `EZE`; `Agente de restaurantes` cubre únicamente `LIM`, `BOG` y `EZE`; `Agente de Enrique` usa una cartelera diaria de ejemplo. Las consultas fuera de esos dominios se informan transparentemente con `agente="ninguno"`.
 - **Memoria en RAM en ejecución local:** El historial conversacional (`MemorySaver` por `thread_id`) vive en memoria del proceso y se reinicia al detener los servidores.
 - **Disponibilidad del proveedor externo:** Si la API de Gemini experimenta saturación (`503`) o agota el timeout, la API devuelve `HTTP 502` o `HTTP 504` (y en Telegram un aviso claro de reintento) sin exponer stack traces ni simular éxito.
+- **Agente CrewAI sin modo offline:** `Agente de restaurantes` no admite `MODELO=prueba` (CrewAI no reconoce ese modelo); para pruebas sin Gemini se omite o se usan los tests con agentes simulados.
+- **Heroku en un solo dyno:** los 6 agentes y la API comparten un proceso `web`; el arranque debe completarse en los 60 s que Heroku concede para abrir `$PORT`, y la memoria sigue en RAM (se pierde en cada reinicio diario del dyno).
 - **Túnel temporal de Telegram:** `cloudflared` genera una URL efímera válida solo mientras el proceso local sigue abierto; sirve para pruebas locales y no reemplaza un despliegue en nube.
 
 ---
@@ -227,7 +237,8 @@ El proyecto está parametrizado para llevarse a plataformas como Render, Railway
   # API Pública / Gateway FastAPI:
   uvicorn api.app:app --host 0.0.0.0 --port ${PORT:-8010}
   ```
-- **Puertos, direcciones y secretos configurables por variables de entorno:** `PORT` / `API_PUERTO`, `API_HOST`, `URL_VIAJES`, `URL_RESTAURANTES`, `URL_ANGGIE`, `URL_ENRIQUE`, `URL_ALGOMARKET`, `URL_CHRISTIAN`, `URLS_AGENTES`, `URL_PUBLICA`, `API_KEY`, `GOOGLE_API_KEY`, `TELEGRAM_TOKEN`, `TELEGRAM_SECRET` y `TELEGRAM_PERMITIDOS`.
+- **Heroku con buildpack de Python (`Procfile` + `.python-version` + `requirements.txt`):** el `Procfile` declara `web: API_HOST=0.0.0.0 python -m scripts.iniciar_todo`. En el dyno (variable `DYNO`) el orquestador levanta los agentes solo en `127.0.0.1`, publica únicamente la API en `0.0.0.0:$PORT`, completa solo las URL internas y envía los registros a `heroku logs --tail`. Como el buildpack instala solo `requirements.txt`, el agente CrewAI de restaurantes se omite con un aviso en vez de detener el sistema. Variables mínimas: `heroku config:set GOOGLE_API_KEY=... API_KEY=... AGENT_API_KEY=... MODELO=gemini-3.5-flash-lite`.
+- **Puertos, direcciones y secretos configurables por variables de entorno:** `PORT` / `API_PUERTO`, `API_HOST`, `URL_VIAJES`, `URL_RESTAURANTES`, `URL_ANGGIE`, `URL_ENRIQUE`, `URL_ALGOMARKET`, `URL_CHRISTIAN`, `URLS_AGENTES`, `URL_PUBLICA`, `API_KEY`, `AGENT_API_KEY`, `GOOGLE_API_KEY`, `TELEGRAM_TOKEN`, `TELEGRAM_SECRET` y `TELEGRAM_PERMITIDOS`.
 - **Datos que deben conservarse en producción:** Para no perder conversaciones entre reinicios o réplicas, debe reemplazarse `MemorySaver` por un checkpointer persistente (`PostgresSaver` sobre PostgreSQL gestionado o `SqliteSaver` en volumen persistente) conservando las tablas de checkpoints por `thread_id`, además de almacenar de forma persistente la configuración de usuarios autorizados (`TELEGRAM_PERMITIDOS`).
 - **Servicios externos requeridos:** API de Google Gemini (`GOOGLE_API_KEY` o Vertex AI IAM), API de Telegram Bot (`api.telegram.org` apuntando por HTTPS al dominio estable de la plataforma sin requerir `cloudflared`) y base de datos PostgreSQL para persistencia de sesiones.
 
@@ -236,6 +247,6 @@ El proyecto está parametrizado para llevarse a plataformas como Render, Railway
 ## 8. Verificación Previa al Envío (`Antes de enviar`)
 
 - [x] Repetimos el arranque desde el `README.md` y comprobamos consultas reales (simples, con memoria, datos faltantes y multi-agente A2A) con `gemini-3.5-flash-lite`.
-- [x] El acceso está protegido (`X-API-Key` en FastAPI y `X-Telegram-Bot-Api-Secret-Token` + `TELEGRAM_PERMITIDOS` en Telegram) y no entregamos secretos ni datos privados.
+- [x] El acceso está protegido (`X-API-Key` en FastAPI, `AGENT_API_KEY` en los agentes A2A y `X-Telegram-Bot-Api-Secret-Token` + `TELEGRAM_PERMITIDOS` en Telegram) y no entregamos secretos ni datos privados.
 - [x] Las capturas en `evidencias/` muestran el resultado real, el control de acceso y el registro correlacionado, explicados honestamente como evidencia `LOCAL`.
 - [x] El repositorio incluye todo el código, pruebas, colección Bruno y configuración de ejemplo sin `.venv`, cachés ni `.env`.

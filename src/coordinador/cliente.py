@@ -1,6 +1,7 @@
 """Cliente A2A compartido para comunicarse con agentes remotos."""
 
 import asyncio
+import os
 from uuid import uuid4
 
 import httpx
@@ -27,6 +28,15 @@ _HTTP_CLIENTES: dict[str, httpx.AsyncClient] = {}
 FICHAS_POR_URL: dict[str, AgentCard] = {}
 
 
+def _cabeceras_a2a() -> dict[str, str]:
+    """Cabeceras de cada llamada A2A; incluye X-API-Key si AGENT_API_KEY está definida."""
+    cabeceras = {VERSION_HEADER: PROTOCOL_VERSION_CURRENT}
+    clave = os.getenv("AGENT_API_KEY", "").strip()
+    if clave:
+        cabeceras["X-API-Key"] = clave
+    return cabeceras
+
+
 async def obtener_cliente(url: str) -> Client:
     """Resuelve y cachea la ficha y el cliente A2A de una URL."""
     url_normalizada = url.strip().rstrip("/")
@@ -35,7 +45,7 @@ async def obtener_cliente(url: str) -> Client:
 
     http_cliente = httpx.AsyncClient(
         timeout=TIMEOUT_RED,
-        headers={VERSION_HEADER: PROTOCOL_VERSION_CURRENT},
+        headers=_cabeceras_a2a(),
     )
     try:
         resolver = A2ACardResolver(http_cliente, url_normalizada)
