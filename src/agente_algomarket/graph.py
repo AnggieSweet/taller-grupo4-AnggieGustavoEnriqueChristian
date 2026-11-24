@@ -11,7 +11,7 @@ from src.agente_algomarket.texto import texto_de_contenido
 load_dotenv()
 
 modelo_nombre = os.getenv("MODELO", "gemini-3.5-flash-lite")
-modelo = ChatGoogleGenerativeAI(model=modelo_nombre)
+modelo = ChatGoogleGenerativeAI(model=modelo_nombre, request_timeout=30)
 
 memoria = MemorySaver()
 
@@ -23,8 +23,26 @@ graph = create_agent(
 )
 
 
+MAX_PASOS_AGENTE = int(os.getenv("MAX_PASOS_AGENTE", "12"))
+
+
 def _config(context_id: str) -> dict:
-    return {"configurable": {"thread_id": context_id}}
+    return {"configurable": {"thread_id": context_id}, "recursion_limit": MAX_PASOS_AGENTE * 2}
+
+
+def _texto(mensaje) -> str:
+    """Devuelve solo el texto de un mensaje.
+
+    Gemini puede responder con una lista de partes ({'type': 'text', 'text': ..., 'extras': ...});
+    .text las une y descarta los datos internos como la firma.
+    """
+    if isinstance(mensaje, dict):
+        contenido = mensaje.get("content", "")
+        return contenido if isinstance(contenido, str) else str(contenido)
+    texto = getattr(mensaje, "text", None)
+    if isinstance(texto, str):
+        return texto
+    return str(getattr(mensaje, "content", "") or "")
 
 
 async def responder(texto: str, context_id: str) -> str:
@@ -57,7 +75,7 @@ def saltos(texto: str) -> None:
                         nombre_tool = getattr(m, "name", None) or (m.get("name") if isinstance(m, dict) else None)
                         print(f"   🛠️  Herramienta llamada: {nombre_tool}")
                     elif tipo in ("ai", "assistant"):
-                        contenido = getattr(m, "content", None) or (m.get("content") if isinstance(m, dict) else "")
+                        contenido = _texto(m)
                         if contenido:
                             print(f"   💬 Respuesta: {texto_de_contenido(contenido)[:200]}")
     except Exception as e:

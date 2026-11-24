@@ -38,6 +38,42 @@ Proyecto de agentes para tiendas del mall, cine, supermercado, patio de comidas,
 - La memoria conversacional usa almacenamiento en memoria y se pierde al reiniciar el proceso.
 - Servicios externos: Gemini requiere `GOOGLE_API_KEY`.
 
+## Despliegue en Heroku (opcional)
+
+Entorno remoto: **https://taller-grupo4-agentes-25a513d1b15a.herokuapp.com** (Swagger en `/docs`). Funciona sin depender de un computador del grupo. La clave `X-API-Key` se entrega al equipo docente por una vía privada; no está en el repositorio.
+
+**Cómo está armado**
+
+- Heroku entrega un solo puerto público por app. Por eso `scripts/servidor_unico.py` levanta los seis agentes y la API en un mismo proceso: los agentes escuchan solo dentro del contenedor (`127.0.0.1`, puertos 8000–8006) y se comunican por A2A igual que en local; la API escucha en `$PORT` y es lo único expuesto.
+- `Dockerfile` instala en una sola imagen las dependencias de `requirements.txt` y `requirements-crew.txt` (son compatibles entre sí). `heroku.yml` indica a Heroku que construya esa imagen (stack `container`).
+- Dyno **Basic** (512 MB): el proceso completo usa unos 230 MB en reposo (medido con `heroku labs:enable log-runtime-metrics`) y arranca en unos 5 segundos.
+
+**Probar el entorno remoto**
+
+```bash
+export URL=https://taller-grupo4-agentes-25a513d1b15a.herokuapp.com
+export API_KEY="la clave entregada por vía privada"
+curl -s -X POST $URL/chat -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"user_id": "evaluador-1", "texto": "¿Qué películas dan mañana en IMAX?"}'
+curl -s -o /dev/null -w "%{http_code}\n" -X POST $URL/chat -H "Content-Type: application/json" -d '{"user_id": "evaluador-1", "texto": "hola"}'   # 401
+```
+
+**Reproducir el despliegue** (requiere [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli), una cuenta con medio de pago y un nombre de app libre):
+
+```bash
+heroku login
+heroku apps:create NOMBRE-APP --stack container
+heroku config:set GOOGLE_API_KEY=... API_KEY=... MODELO=gemini-3.5-flash-lite ZONA_HORARIA=America/Santiago -a NOMBRE-APP
+git push heroku main
+heroku ps:type web=basic -a NOMBRE-APP
+heroku logs --tail -a NOMBRE-APP
+```
+
+No hace falta configurar `URL_*` ni `URLS_AGENTES`: el servidor único usa las direcciones internas por defecto. Para Telegram, agrega `TELEGRAM_TOKEN`, `TELEGRAM_SECRET` y `TELEGRAM_PERMITIDOS` con `heroku config:set` y apunta el bot a la app con `python -m scripts.webhook_telegram https://NOMBRE-APP.herokuapp.com`.
+
+**Costo y apagado:** el dyno Basic cuesta hasta USD 7 al mes, cobrado por segundo. Para detenerlo sin borrar la app: `heroku ps:scale web=0 -a NOMBRE-APP`; para eliminarla: `heroku apps:destroy NOMBRE-APP`.
+
+**Límites:** la memoria conversacional está en RAM y se pierde cuando Heroku reinicia el dyno (al menos una vez al día o en cada despliegue). Los registros de Heroku se conservan poco tiempo; las evidencias se guardan como capturas.
+
 ## Telegram
 
 1. Crea un bot con [@BotFather](https://t.me/BotFather) y copia el token que entrega en `TELEGRAM_TOKEN` dentro de `.env`.
@@ -49,7 +85,7 @@ El túnel de `cloudflared` cambia de URL en cada arranque; es temporal y no cons
 
 ## Requisitos e instalación
 
-Se recomienda Python **3.13** (el entorno del proyecto se probó con esa versión) y Windows PowerShell. Copia `.env.example` a `.env` y configura las credenciales localmente; no compartas `.env`.
+Se recomienda Python **3.13** (el entorno del proyecto se probó con esa versión) y Windows PowerShell. En Mac o Linux sigue la sección [Mac o Linux](#mac-o-linux). Copia `.env.example` a `.env` y configura las credenciales localmente; no compartas `.env`.
 
 ```powershell
 py -3.13 -m venv .venv
@@ -142,4 +178,70 @@ La variable `apiKey` se lee de `bruno/.env` con `{{process.env.API_KEY}}`; no es
 
 ## Detener
 
-En cada terminal donde corre un agente o la API, pulsa **Ctrl+C**.
+En cada terminal donde corre un agente o la API, pulsa **Ctrl+C**. Si usaste `iniciar.ps1`, ejecuta `.\detener.ps1`.
+
+## Mac o Linux
+
+Los scripts `instalar.sh`, `iniciar.sh` y `detener.sh` equivalen a los `.ps1` de Windows. Se probaron en macOS con Python 3.12 y deberían funcionar igual en Linux.
+
+**Requisitos:** Python 3.13 o 3.12 con `venv` (Mac: `brew install python@3.13`; Debian/Ubuntu: `sudo apt install python3.13 python3.13-venv`), `curl` y conexión a internet (Gemini y, si se usa, Telegram).
+
+1. Instala los entornos `.venv` y `.venv-crew` y crea `.env` desde `.env.example`:
+
+   ```bash
+   bash instalar.sh
+   ```
+
+   Para usar un Python concreto: `PYTHON=/ruta/a/python3.13 bash instalar.sh`.
+
+2. Configura `.env`. Guarda `GOOGLE_API_KEY` sin que se vea en pantalla:
+
+   ```bash
+   .venv/bin/python -m scripts.configurar_clave
+   ```
+
+   Genera una clave para `API_KEY` y pégala en `.env`:
+
+   ```bash
+   .venv/bin/python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+
+3. Levanta los seis agentes y la API en segundo plano. El script espera a que cada servicio responda y deja los registros en `logs/<servicio>.log`:
+
+   ```bash
+   bash iniciar.sh
+   ```
+
+4. Prueba con Swagger en [http://localhost:8010/docs](http://localhost:8010/docs) (botón **Authorize**), o con `curl`. Carga la clave desde `.env` para no escribirla en la terminal:
+
+   ```bash
+   export API_KEY="$(grep '^API_KEY=' .env | cut -d= -f2-)"
+   ```
+
+   Acceso permitido (200):
+
+   ```bash
+   curl -s -X POST http://localhost:8010/chat -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"user_id": "usuario-123", "texto": "¿Cuánto cuesta la leche en AlgoMarket?"}'
+   ```
+
+   Acceso rechazado (401):
+
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8010/chat -H "Content-Type: application/json" -d '{"user_id": "usuario-123", "texto": "hola"}'
+   ```
+
+5. Pruebas automatizadas (se indica la carpeta `tests` porque pytest también intenta leer `test_supervisor.txt` de la raíz y falla):
+
+   ```bash
+   .venv/bin/python -m pytest tests
+   ```
+
+6. Telegram (opcional): con los servicios arriba y `TELEGRAM_*` configurado en `.env`, ejecuta `.venv/bin/python -m scripts.telegram_local` y escribe al bot. Requiere `cloudflared` (`brew install cloudflared`). Ctrl+C borra el webhook y cierra el túnel.
+
+7. Detén todos los servicios:
+
+   ```bash
+   bash detener.sh
+   ```
+
+Si un puerto está ocupado, `iniciar.sh` lo avisa y no levanta ese servicio. Si quedó una ejecución anterior, `bash detener.sh` borra `logs/pids.txt` y permite iniciar otra vez.
