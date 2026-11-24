@@ -1,11 +1,15 @@
-import os
-import asyncio
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
-from src.agente_algomarket.tools import buscar_producto, horario_supermercado
+
+from src import config
 from src.agente_algomarket.prompts import SYSTEM_PROMPT
+from src.agente_algomarket.tools import buscar_producto, horario_supermercado
+from src.comun.modelo import crear_llm_gemini
+
+load_dotenv()
+
+modelo = crear_llm_gemini(timeout=30.0, permitir_sin_clave_al_importar=True)
 from src.agente_algomarket.texto import texto_de_contenido
 
 load_dotenv()
@@ -61,10 +65,11 @@ async def responder(texto: str, context_id: str) -> str:
 
 def saltos(texto: str) -> None:
     """Ejecuta el grafo con stream y muestra cada nodo y herramienta por la que pasa."""
-    config = _config("saltos-demo")
+    config.exigir_clave()
+    cfg = _config("saltos-demo")
     total = 0
     try:
-        for paso in graph.stream({"messages": [{"role": "user", "content": texto}]}, config=config, stream_mode="updates"):
+        for paso in graph.stream({"messages": [{"role": "user", "content": texto}]}, config=cfg, stream_mode="updates"):
             for nodo, actualizacion in paso.items():
                 total += 1
                 print(f"→ Nodo: {nodo}")

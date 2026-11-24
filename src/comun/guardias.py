@@ -1,6 +1,7 @@
 """Guardrails deterministas (regex): primero lo obvio, gratis y sin modelo (clase MCP y guardrails).
 
-Se usan como nodos del grafo: guardia_entrada antes del agente y guardia_salida después.
+Se usan como nodos del grafo y filtro de entrada de la API: guardia_entrada, guardia_salida
+y verificador de fidelidad numérica en CLP para respuestas multi-agente.
 """
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ SECRETOS_SALIDA = [
     r"\b(password|contrase[ñn]a|api[_ ]?key|token)\s*[:=]\s*\S{6,}",
     r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
 ]
+PATRON_MONTO_CLP = re.compile(r"\$\s?\d{1,3}(?:\.\d{3})+|\$\s?\d{3,6}\b")
 
 
 @dataclass
@@ -80,3 +82,43 @@ def revisar_salida(texto: str, max_palabras: int, nombres_validos: set[str], pat
         problemas.append("formato")
         detalles.append(f"supera {max_palabras} palabras fuera del código")
     return Revision(not problemas, problemas, "; ".join(detalles))
+
+
+def extraer_montos_enteros(texto: str) -> set[int]:
+    """Normaliza montos en CLP (ej. '$1.290' o '$ 36.792' -> 1290, 36792)."""
+    montos: set[int] = set()
+    for m in PATRON_MONTO_CLP.findall(texto):
+        digitos = re.sub(r"\D", "", m)
+        if digitos:
+            montos.add(int(digitos))
+    return montos
+
+
+def verificar_fidelidad_integracion(texto_integrado: str, reportes_fuente: list[str]) -> tuple[bool, list[int]]:
+    """Comprueba que la conclusión integrada no altere ni invente cifras en CLP respecto de los reportes A2A.
+
+    Acepta montos presentes literalmente en cualquiera de los reportes de los agentes especialistas
+    o sumas exactas directas de dichos montos cuando el usuario pidió un total combinado.
+    """
+    fuente_unida = "\n".join(reportes_fuente)
+    montos_fuente = extraer_montos_enteros(fuente_unida)
+    # También considera números enteros >= 100 que un agente haya escrito como '1290 CLP' sin signo '$'
+    for num in re.findall(r"\b\d{1,3}(?:\.\d{3})+\b|\b\d{3,6}\b", fuente_unida):
+        limpio = re.sub(r"\D", "", num)
+        if limpio:
+            montos_fuente.add(int(limpio))
+
+    montos_salida = extraer_montos_enteros(texto_integrado)
+    if not montos_salida:
+        return True, []
+
+    sumas_validas = set(montos_fuente)
+    lista_fuente = sorted(montos_fuente)
+    if len(lista_fuente) >= 2:
+        sumas_validas.add(sum(lista_fuente))
+        for i, a in enumerate(lista_fuente):
+            for b in lista_fuente[i + 1 :]:
+                sumas_validas.add(a + b)
+
+    no_respaldados = sorted(m for m in montos_salida if m not in sumas_validas)
+    return len(no_respaldados) == 0, no_respaldados

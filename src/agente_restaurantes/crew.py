@@ -1,17 +1,45 @@
-import os
 import asyncio
+import os
+
+from crewai import Agent, Crew, LLM, Task
 from dotenv import load_dotenv
-from crewai import Agent, Task, Crew, LLM
+
+from src.agente_restaurantes.prompts import HISTORIA, OBJETIVO, ROL
 from src.agente_restaurantes.tools import buscar_restaurantes, detalle_restaurante
-from src.agente_restaurantes.prompts import ROL, OBJETIVO, HISTORIA
 
 load_dotenv()
 
-modelo_nombre = os.getenv("MODELO", "gemini-3.5-flash-lite")
-api_key = os.getenv("GOOGLE_API_KEY", "")
 
-# CrewAI espera formato proveedor/modelo
-llm = LLM(model=f"gemini/{modelo_nombre}", api_key=api_key)
+def _crear_llm_crew() -> LLM:
+    modelo_nombre = os.getenv("MODELO", "gemini-3.5-flash-lite")
+    api_key = os.getenv("GOOGLE_API_KEY", "").strip()
+    usar_oauth = os.getenv("USAR_OAUTH", "").strip().lower() in ("1", "true", "si", "sí")
+    proyecto = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
+    ubicacion = os.getenv("GOOGLE_CLOUD_LOCATION", "global").strip() or "global"
+
+    if usar_oauth and not api_key:
+        from src import config
+
+        creds, proyecto_adc = config.obtener_credenciales_oauth()
+        proy = proyecto or proyecto_adc
+        if proy:
+            os.environ.setdefault("GOOGLE_CLOUD_PROJECT", proy)
+            os.environ.setdefault("VERTEXAI_PROJECT", proy)
+        os.environ.setdefault("GOOGLE_CLOUD_LOCATION", ubicacion)
+        os.environ.setdefault("VERTEXAI_LOCATION", ubicacion)
+        os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
+        return LLM(
+            model=f"gemini/{modelo_nombre}",
+            project=proy or None,
+            location=ubicacion,
+            client_params={"credentials": creds},
+            timeout=30,
+        )
+
+    return LLM(model=f"gemini/{modelo_nombre}", api_key=api_key or "CLAVE_NO_CONFIGURADA", timeout=30)
+
+
+llm = _crear_llm_crew()
 
 agente_gourmet = Agent(
     role=ROL,
@@ -19,56 +47,58 @@ agente_gourmet = Agent(
     backstory=HISTORIA,
     tools=[buscar_restaurantes, detalle_restaurante],
     llm=llm,
-    verbose=True,
+    verbose=False,
     memory=False,
+    max_iter=6,
 )
 
 # Memoria manual por context_id
-HISTORIAL_CONVERSACIONES = {}
+HISTORIAL_CONVERSACIONES: dict[str, str] = {}
+
 
 def _obtener_historial(context_id: str) -> str:
     return HISTORIAL_CONVERSACIONES.get(context_id, "")
 
-def _guardar_historial(context_id: str, usuario: str, respuesta: str):
+
+def _guardar_historial(context_id: str, usuario: str, respuesta: str) -> None:
     actual = HISTORIAL_CONVERSACIONES.get(context_id, "")
     nuevo = f"{actual}\nUsuario: {usuario}\nAsistente: {respuesta}"
-    HISTORIAL_CONVERSACIONES[context_id] = nuevo
+    HISTORIAL_CONVERSACIONES[context_id] = nuevo[-4000:]
 
 
 async def responder(texto: str, context_id: str) -> str:
-    """Ejecuta el crew con memoria manual por context_id y devuelve la respuesta en texto."""
-    historial = _obtener_historial(context_id)
-    
-    descripcion_tarea = f"""
-Historial previo de la conversación:
-{historial}
+    """Ejecuta el crew con memoria manual por context_id y propaga fallas para que la API devuelva 502/504."""
+    api_key = os.getenv("GOOGLE_API_KEY", "").strip()
+    usar_oauth = os.getenv("USAR_OAUTH", "").strip().lower() in ("1", "true", "si", "sí")
+    if not api_key and not usar_oauth:
+        raise RuntimeError("Falta GOOGLE_API_KEY en .env (o USAR_OAUTH=true).")
 
-Pregunta actual del usuario:
-{texto}
-"""
-    
+    historial = _obtener_historial(context_id)
+    descripcion_tarea = (
+        f"Historial previo de la conversación:\n{historial}\n\n"
+        f"Pregunta actual del usuario:\n{texto}\n"
+    )
+
     tarea = Task(
         description=descripcion_tarea,
         expected_output="Una recomendación de restaurantes clara, corta y en español basada en las herramientas.",
         agent=agente_gourmet,
     )
-    
+
     crew = Crew(
         agents=[agente_gourmet],
         tasks=[tarea],
-        verbose=True,
+        verbose=False,
     )
-    
+
     try:
-        # Ejecutar crew en un thread separado para no bloquear el bucle async de FastAPI
         resultado = await asyncio.to_thread(crew.kickoff)
         texto_res = str(resultado)
         _guardar_historial(context_id, texto, texto_res)
         return texto_res
     except Exception as e:
-        error_msg = f"Error al procesar la recomendación: {str(e)}"
-        print(f"[Error CrewAI] {error_msg}")
-        return error_msg
+        detalle = " ".join(str(e).splitlines()).strip()
+        raise RuntimeError(f"Error al procesar la recomendación: {detalle or 'falla del proveedor'}") from e
 
 
 def saltos(texto: str) -> None:
@@ -77,7 +107,7 @@ def saltos(texto: str) -> None:
 
     def callback(step_output):
         nonlocal herramientas_usadas
-        print(f"👣 [Paso CrewAI]:")
+        print("👣 [Paso CrewAI]:")
         if hasattr(step_output, "thought") and step_output.thought:
             print(f"   💭 Pensamiento: {step_output.thought}")
         if hasattr(step_output, "tool") and step_output.tool:

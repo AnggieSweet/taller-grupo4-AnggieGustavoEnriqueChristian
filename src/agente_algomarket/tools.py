@@ -1,11 +1,10 @@
 import unicodedata
-from datetime import datetime
 
 from langchain.tools import tool
 
-# Datos inventados pero creíbles de productos del supermercado.
-# CAMBIO: se agrega "unidad" (supuesto a confirmar por el autor del agente)
-# para que las respuestas conserven la unidad junto al precio.
+from src import config
+
+# Datos sintéticos de productos del supermercado conservando precio en CLP y unidad explícita.
 PRODUCTOS = {
     "leche": {"precio_clp": 1290, "unidad": "1 litro", "stock": 45, "pasillo": "3 - Lacteos", "oferta": "2x1 los martes"},
     "pan": {"precio_clp": 1890, "unidad": "1 kilo", "stock": 30, "pasillo": "5 - Panaderia", "oferta": "Sin oferta"},
@@ -13,7 +12,6 @@ PRODUCTOS = {
     "aceite": {"precio_clp": 3990, "unidad": "1 litro", "stock": 25, "pasillo": "2 - Aceites", "oferta": "Sin oferta"},
     "detergente": {"precio_clp": 4590, "unidad": "1 botella", "stock": 18, "pasillo": "7 - Limpieza", "oferta": "Pack 2 por $8.000"},
     "bebidas": {"precio_clp": 1990, "unidad": "1 botella", "stock": 80, "pasillo": "8 - Bebidas", "oferta": "3x2 en gaseosas"},
-    # NUEVO: el supervisor deriva aquí la comida de mascotas (ver PROMPT_SUPERVISOR). Datos inventados.
     "alimento para mascotas": {
         "precio_clp": 12990, "unidad": "1 saco de 3 kilos", "stock": 22, "pasillo": "9 - Mascotas", "oferta": "Sin oferta",
         "alias": ["comida para mascotas", "comida de mascotas", "alimento de mascotas",
@@ -23,7 +21,6 @@ PRODUCTOS = {
 
 _PALABRAS_VACIAS = {"de", "del", "para", "con", "y", "la", "el", "los", "las"}
 
-# Horarios inventados por dia de la semana (claves sin tildes)
 HORARIOS = {
     "lunes": ("09:00", "21:00"),
     "martes": ("09:00", "21:00"),
@@ -49,8 +46,8 @@ def _singular(palabra: str) -> str:
 
 
 def _dia_actual(desplazamiento: int = 0) -> str:
-    """Día de la semana según el reloj del equipo (hoy = 0, mañana = 1)."""
-    return _DIAS[(datetime.now().weekday() + desplazamiento) % 7]
+    """Día de la semana según la zona horaria del proyecto (hoy = 0, mañana = 1)."""
+    return _DIAS[(config.ahora().weekday() + desplazamiento) % 7]
 
 
 @tool
@@ -73,7 +70,6 @@ def buscar_producto(producto: str) -> dict:
                 "oferta": datos["oferta"],
             }
 
-    # Coincidencia parcial (p. ej. "aceite de oliva"): NO se asume, se sugiere.
     palabras = {_singular(p) for p in clave.split() if p not in _PALABRAS_VACIAS}
     sugerencias = [
         n for n in PRODUCTOS

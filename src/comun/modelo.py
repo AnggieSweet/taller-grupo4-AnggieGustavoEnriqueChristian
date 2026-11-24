@@ -1,18 +1,14 @@
-"""obtener_modelo(): Gemini en uso normal, o un modelo de prueba determinista con MODELO=prueba.
-
-El modelo de prueba NO es inteligente: sigue reglas escritas a mano (regex → herramienta).
-Sirve para tres cosas: correr los tests sin clave ni internet, que el docente revise el
-flujo completo (A2A, ficha, coordinador) sin gastar cuota, y CI. La evidencia del taller
-se saca con Gemini, no con este modelo.
-"""
+"""obtener_modelo() y crear_llm_gemini(): Gemini por GOOGLE_API_KEY o Google OAuth/ADC, o MODELO=prueba."""
 from __future__ import annotations
 
 import json
+import os
 import re
 import uuid
 from collections.abc import Callable, Sequence
 from typing import Any
 
+from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
@@ -21,7 +17,6 @@ from pydantic import BaseModel, ConfigDict
 
 from src import config
 
-# Una regla: (patrón sobre la pregunta, nombre de herramienta, función que arma los argumentos).
 Regla = tuple[str, str, Callable[[re.Match, str], dict]]
 
 
@@ -31,20 +26,20 @@ class ModeloPrueba(BaseChatModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     reglas: list[Regla] = []
     fuera_de_tema: str = "Eso no es de mi especialidad."
-    directas: list[tuple[str, str]] = []  # (patrón, respuesta sin herramientas): saludo, nombre
+    directas: list[tuple[str, str]] = []
     herramientas: list[str] = []
 
     @property
     def _llm_type(self) -> str:
         return "modelo-prueba"
 
-    def bind_tools(self, tools: Sequence[Any], **_: Any) -> "ModeloPrueba":
+    def bind_tools(self, tools: Sequence[Any], **_: Any) -> ModeloPrueba:
         nombres = [getattr(t, "name", getattr(t, "__name__", str(t))) for t in tools]
         return self.model_copy(update={"herramientas": nombres})
 
     def _generate(self, messages: list[BaseMessage], stop=None, run_manager=None, **_: Any) -> ChatResult:
         ultimo = messages[-1]
-        if isinstance(ultimo, ToolMessage):  # ya tengo el dato: respondo con él, sin inventar
+        if isinstance(ultimo, ToolMessage):
             texto = str(ultimo.content).strip()
             mensaje = AIMessage(content=texto[:1200])
         else:
@@ -72,6 +67,43 @@ def _ultima_pregunta(messages: list[BaseMessage]) -> str:
     return ""
 
 
+def crear_llm_gemini(temperatura: float = 0.0, timeout: float = 30.0, permitir_sin_clave_al_importar: bool = False):
+    """Construye ChatGoogleGenerativeAI soportando GOOGLE_API_KEY y USAR_OAUTH=true."""
+    load_dotenv()
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    nombre_modelo = os.environ.get("MODELO", config.MODELO)
+    api_key = os.environ.get("GOOGLE_API_KEY", config.GOOGLE_API_KEY).strip()
+    usar_oauth = os.environ.get("USAR_OAUTH", "").strip().lower() in ("1", "true", "si", "sí") or config.USAR_OAUTH
+    proyecto = os.environ.get("GOOGLE_CLOUD_PROJECT", config.GOOGLE_CLOUD_PROJECT).strip()
+    ubicacion = os.environ.get("GOOGLE_CLOUD_LOCATION", config.GOOGLE_CLOUD_LOCATION).strip() or "global"
+    temp_kwargs = {} if "gemini-3.5" in nombre_modelo else {"temperature": temperatura}
+
+    if usar_oauth and not api_key:
+        creds, proyecto_adc = config.obtener_credenciales_oauth()
+        return ChatGoogleGenerativeAI(
+            model=nombre_modelo,
+            vertexai=True,
+            credentials=creds,
+            project=proyecto or proyecto_adc or None,
+            location=ubicacion,
+            timeout=timeout,
+            max_retries=2,
+            **temp_kwargs,
+        )
+
+    if not api_key and not permitir_sin_clave_al_importar:
+        config.exigir_clave()
+
+    return ChatGoogleGenerativeAI(
+        model=nombre_modelo,
+        api_key=api_key or "CLAVE_NO_CONFIGURADA",
+        timeout=timeout,
+        max_retries=2,
+        **temp_kwargs,
+    )
+
+
 def obtener_modelo(
     temperatura: float = 0.0,
     reglas_prueba: list[Regla] | None = None,
@@ -81,30 +113,7 @@ def obtener_modelo(
     """Gemini (por GOOGLE_API_KEY o Google OAuth/ADC si USAR_OAUTH=true) o el modelo de prueba si MODELO=prueba."""
     if config.modo_prueba():
         return ModeloPrueba(reglas=reglas_prueba or [], fuera_de_tema=fuera_de_tema, directas=directas_prueba or [])
-    config.exigir_clave()  # sin clave: una línea clara en vez de un stack trace de pydantic
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
-    # gemini-3.5-* usa muestreo fijo y emite un UserWarning si se pasa temperature.
-    temp_kwargs = {} if "gemini-3.5" in config.MODELO else {"temperature": temperatura}
-
-    if config.USAR_OAUTH:
-        return ChatGoogleGenerativeAI(
-            model=config.MODELO,
-            vertexai=True,
-            project=config.GOOGLE_CLOUD_PROJECT or None,
-            location=config.GOOGLE_CLOUD_LOCATION,
-            timeout=config.TIMEOUT_A2A,
-            max_retries=2,
-            **temp_kwargs,
-        )
-
-    return ChatGoogleGenerativeAI(
-        model=config.MODELO,
-        api_key=config.GOOGLE_API_KEY,
-        timeout=config.TIMEOUT_A2A,
-        max_retries=2,
-        **temp_kwargs,
-    )
+    return crear_llm_gemini(temperatura=temperatura, timeout=config.TIMEOUT_A2A, permitir_sin_clave_al_importar=True)
 
 
 def salida_estructurada(

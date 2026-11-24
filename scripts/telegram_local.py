@@ -17,9 +17,6 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
-RUTA_CLOUDFLARED_WINDOWS = Path(
-    r"C:\Program Files (x86)\cloudflared\cloudflared.exe"
-)
 EXPRESION_URL = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
 TIMEOUT_CLOUDFLARED = 60.0
 TIMEOUT_SALUD = 120.0
@@ -27,12 +24,16 @@ TIMEOUT_TELEGRAM = 30.0
 
 
 def _buscar_cloudflared() -> str | None:
-    """Busca cloudflared en el PATH y en su ubicación habitual de Windows."""
+    """Busca cloudflared en el PATH o ubicaciones estándar de instalación en Windows."""
     encontrado = shutil.which("cloudflared")
     if encontrado:
         return encontrado
-    if RUTA_CLOUDFLARED_WINDOWS.is_file():
-        return str(RUTA_CLOUDFLARED_WINDOWS)
+    for base_env in ("ProgramFiles", "ProgramFiles(x86)"):
+        base = os.environ.get(base_env)
+        if base:
+            candidato = Path(base) / "cloudflared" / "cloudflared.exe"
+            if candidato.is_file():
+                return str(candidato)
     return None
 
 
@@ -135,6 +136,7 @@ async def ejecutar() -> int:
     load_dotenv(ruta_env, override=True)
     token = os.getenv("TELEGRAM_TOKEN", "").strip()
     secreto = os.getenv("TELEGRAM_SECRET", "").strip()
+    puerto_api = int(os.getenv("PORT") or os.getenv("API_PUERTO") or "8010")
     if not token or not secreto:
         print("Configura TELEGRAM_TOKEN y TELEGRAM_SECRET en .env.")
         return 1
@@ -156,7 +158,7 @@ async def ejecutar() -> int:
             cloudflared,
             "tunnel",
             "--url",
-            "http://localhost:8010",
+            f"http://localhost:{puerto_api}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
