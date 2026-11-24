@@ -1,5 +1,7 @@
 .env
+.env.tmp
 bruno/.env
+bruno/*.html
 .venv/
 .venv-crew/
 __pycache__/
