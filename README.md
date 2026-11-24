@@ -38,6 +38,42 @@ Proyecto de agentes para tiendas del mall, cine, supermercado, patio de comidas,
 - La memoria conversacional usa almacenamiento en memoria y se pierde al reiniciar el proceso.
 - Servicios externos: Gemini requiere `GOOGLE_API_KEY`.
 
+## Despliegue en Heroku (opcional)
+
+Entorno remoto: **https://taller-grupo4-agentes-25a513d1b15a.herokuapp.com** (Swagger en `/docs`). Funciona sin depender de un computador del grupo. La clave `X-API-Key` se entrega al equipo docente por una vía privada; no está en el repositorio.
+
+**Cómo está armado**
+
+- Heroku entrega un solo puerto público por app. Por eso `scripts/servidor_unico.py` levanta los seis agentes y la API en un mismo proceso: los agentes escuchan solo dentro del contenedor (`127.0.0.1`, puertos 8000–8006) y se comunican por A2A igual que en local; la API escucha en `$PORT` y es lo único expuesto.
+- `Dockerfile` instala en una sola imagen las dependencias de `requirements.txt` y `requirements-crew.txt` (son compatibles entre sí). `heroku.yml` indica a Heroku que construya esa imagen (stack `container`).
+- Dyno **Basic** (512 MB): el proceso completo usa unos 230 MB en reposo (medido con `heroku labs:enable log-runtime-metrics`) y arranca en unos 5 segundos.
+
+**Probar el entorno remoto**
+
+```bash
+export URL=https://taller-grupo4-agentes-25a513d1b15a.herokuapp.com
+export API_KEY="la clave entregada por vía privada"
+curl -s -X POST $URL/chat -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"user_id": "evaluador-1", "texto": "¿Qué películas dan mañana en IMAX?"}'
+curl -s -o /dev/null -w "%{http_code}\n" -X POST $URL/chat -H "Content-Type: application/json" -d '{"user_id": "evaluador-1", "texto": "hola"}'   # 401
+```
+
+**Reproducir el despliegue** (requiere [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli), una cuenta con medio de pago y un nombre de app libre):
+
+```bash
+heroku login
+heroku apps:create NOMBRE-APP --stack container
+heroku config:set GOOGLE_API_KEY=... API_KEY=... MODELO=gemini-3.5-flash-lite ZONA_HORARIA=America/Santiago -a NOMBRE-APP
+git push heroku main
+heroku ps:type web=basic -a NOMBRE-APP
+heroku logs --tail -a NOMBRE-APP
+```
+
+No hace falta configurar `URL_*` ni `URLS_AGENTES`: el servidor único usa las direcciones internas por defecto. Para Telegram, agrega `TELEGRAM_TOKEN`, `TELEGRAM_SECRET` y `TELEGRAM_PERMITIDOS` con `heroku config:set` y apunta el bot a la app con `python -m scripts.webhook_telegram https://NOMBRE-APP.herokuapp.com`.
+
+**Costo y apagado:** el dyno Basic cuesta hasta USD 7 al mes, cobrado por segundo. Para detenerlo sin borrar la app: `heroku ps:scale web=0 -a NOMBRE-APP`; para eliminarla: `heroku apps:destroy NOMBRE-APP`.
+
+**Límites:** la memoria conversacional está en RAM y se pierde cuando Heroku reinicia el dyno (al menos una vez al día o en cada despliegue). Los registros de Heroku se conservan poco tiempo; las evidencias se guardan como capturas.
+
 ## Telegram
 
 1. Crea un bot con [@BotFather](https://t.me/BotFather) y copia el token que entrega en `TELEGRAM_TOKEN` dentro de `.env`.
