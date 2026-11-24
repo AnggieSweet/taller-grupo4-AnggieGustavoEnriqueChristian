@@ -2,6 +2,8 @@
 
 Entrega grupal del **Taller de integración y ejecución local** del **Curso 2 · Agentic AI (UAI)**, retomando los agentes especialistas desarrollados en el Taller A2A e integrándolos a una forma de uso real, protegida y reproducible en local.
 
+> 📘 **Guía visual paso a paso:** después de clonar el repositorio, abre [`docs/guia-pruebas.html`](docs/guia-pruebas.html) con doble clic en tu navegador. Tiene botones para copiar cada comando, los resultados esperados de cada prueba y una lista de problemas comunes.
+
 ---
 
 ## 1. Integrantes y Aportes
