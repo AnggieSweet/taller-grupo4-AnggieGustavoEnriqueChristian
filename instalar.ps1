@@ -65,7 +65,7 @@ try {
     }
 
     Write-Host ''
-    Write-Host 'Completa en .env las variables obligatorias: GOOGLE_API_KEY (o USAR_OAUTH=true) y API_KEY.'
+    Write-Host 'Completa en .env las variables obligatorias: GOOGLE_API_KEY (o USAR_OAUTH=true), API_KEY y AGENT_API_KEY (si expones los agentes).'
     Write-Host 'Opcionales para Telegram: TELEGRAM_TOKEN, TELEGRAM_SECRET y TELEGRAM_PERMITIDOS.'
 }
 catch {
