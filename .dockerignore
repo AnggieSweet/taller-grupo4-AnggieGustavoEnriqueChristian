@@ -1,0 +1,9 @@
+.env
+bruno/.env
+.venv/
+.venv-crew/
+__pycache__/
+.pytest_cache/
+.langgraph_api/
+logs/
+.git/

@@ -10,6 +10,13 @@ from src.comun.modelo import crear_llm_gemini
 load_dotenv()
 
 modelo = crear_llm_gemini(timeout=30.0, permitir_sin_clave_al_importar=True)
+from src.agente_algomarket.texto import texto_de_contenido
+
+load_dotenv()
+
+modelo_nombre = os.getenv("MODELO", "gemini-3.5-flash-lite")
+modelo = ChatGoogleGenerativeAI(model=modelo_nombre, request_timeout=30)
+
 memoria = MemorySaver()
 
 graph = create_agent(
@@ -20,15 +27,32 @@ graph = create_agent(
 )
 
 
+MAX_PASOS_AGENTE = int(os.getenv("MAX_PASOS_AGENTE", "12"))
+
+
 def _config(context_id: str) -> dict:
-    return {"configurable": {"thread_id": context_id}, "recursion_limit": config.MAX_PASOS_AGENTE * 2}
+    return {"configurable": {"thread_id": context_id}, "recursion_limit": MAX_PASOS_AGENTE * 2}
+
+
+def _texto(mensaje) -> str:
+    """Devuelve solo el texto de un mensaje.
+
+    Gemini puede responder con una lista de partes ({'type': 'text', 'text': ..., 'extras': ...});
+    .text las une y descarta los datos internos como la firma.
+    """
+    if isinstance(mensaje, dict):
+        contenido = mensaje.get("content", "")
+        return contenido if isinstance(contenido, str) else str(contenido)
+    texto = getattr(mensaje, "text", None)
+    if isinstance(texto, str):
+        return texto
+    return str(getattr(mensaje, "content", "") or "")
 
 
 async def responder(texto: str, context_id: str) -> str:
-    """Envía el texto al grafo y devuelve la última respuesta del agente."""
-    config.exigir_clave()
-    cfg = _config(context_id)
-    resultado = await graph.ainvoke({"messages": [{"role": "user", "content": texto}]}, config=cfg)
+    """Envía el texto al grafo y devuelve la última respuesta del agente como texto plano."""
+    config = _config(context_id)
+    resultado = await graph.ainvoke({"messages": [{"role": "user", "content": texto}]}, config=config)
     mensajes = resultado.get("messages", [])
     if not mensajes:
         return ""
@@ -36,9 +60,7 @@ async def responder(texto: str, context_id: str) -> str:
     contenido = getattr(ultimo, "content", None)
     if contenido is None and isinstance(ultimo, dict):
         contenido = ultimo.get("content", "")
-    if isinstance(contenido, list):
-        return "\n".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in contenido).strip()
-    return str(contenido) if contenido is not None else ""
+    return texto_de_contenido(contenido)
 
 
 def saltos(texto: str) -> None:
@@ -58,9 +80,9 @@ def saltos(texto: str) -> None:
                         nombre_tool = getattr(m, "name", None) or (m.get("name") if isinstance(m, dict) else None)
                         print(f"   🛠️  Herramienta llamada: {nombre_tool}")
                     elif tipo in ("ai", "assistant"):
-                        contenido = getattr(m, "content", None) or (m.get("content") if isinstance(m, dict) else "")
+                        contenido = _texto(m)
                         if contenido:
-                            print(f"   💬 Respuesta: {str(contenido)[:200]}")
+                            print(f"   💬 Respuesta: {texto_de_contenido(contenido)[:200]}")
     except Exception as e:
         print(f"Error al ejecutar el agente: {e}")
         return
