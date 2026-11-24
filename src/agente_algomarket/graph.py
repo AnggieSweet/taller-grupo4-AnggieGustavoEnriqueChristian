@@ -6,6 +6,7 @@ from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 from src.agente_algomarket.tools import buscar_producto, horario_supermercado
 from src.agente_algomarket.prompts import SYSTEM_PROMPT
+from src.agente_algomarket.texto import texto_de_contenido
 
 load_dotenv()
 
@@ -45,13 +46,17 @@ def _texto(mensaje) -> str:
 
 
 async def responder(texto: str, context_id: str) -> str:
-    """Envía el texto al grafo y devuelve la última respuesta del agente."""
+    """Envía el texto al grafo y devuelve la última respuesta del agente como texto plano."""
     config = _config(context_id)
     resultado = await graph.ainvoke({"messages": [{"role": "user", "content": texto}]}, config=config)
     mensajes = resultado.get("messages", [])
     if not mensajes:
         return ""
-    return _texto(mensajes[-1])
+    ultimo = mensajes[-1]
+    contenido = getattr(ultimo, "content", None)
+    if contenido is None and isinstance(ultimo, dict):
+        contenido = ultimo.get("content", "")
+    return texto_de_contenido(contenido)
 
 
 def saltos(texto: str) -> None:
@@ -72,7 +77,7 @@ def saltos(texto: str) -> None:
                     elif tipo in ("ai", "assistant"):
                         contenido = _texto(m)
                         if contenido:
-                            print(f"   💬 Respuesta: {contenido[:200]}")
+                            print(f"   💬 Respuesta: {texto_de_contenido(contenido)[:200]}")
     except Exception as e:
         print(f"Error al ejecutar el agente: {e}")
         return
