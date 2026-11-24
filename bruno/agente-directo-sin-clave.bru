@@ -1,0 +1,32 @@
+meta {
+  name: agente-directo-sin-clave
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{agenteChristianUrl}}/
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": "bruno-sin-clave",
+    "method": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "bruno-sin-clave-1",
+        "role": "ROLE_USER",
+        "parts": [{ "text": "¿Qué promociones hay hoy?" }]
+      }
+    }
+  }
+}
+
+tests {
+  test("Llamar directo a un agente A2A sin AGENT_API_KEY devuelve 401", function() {
+    expect(res.getStatus()).to.equal(401);
+  });
+}
