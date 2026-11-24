@@ -11,7 +11,7 @@ function Obtener-ComandoPython {
         $cmd = Get-Command $candidato.Exe -ErrorAction SilentlyContinue
         if ($cmd) {
             try {
-                $ver = & $candidato.Exe @($candidato.Args + @('-c', 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')) 2>$null
+                $ver = & $candidato.Exe @($candidato.Args + @('-c', 'import sys; print(''%d.%d'' % sys.version_info[:2])')) 2>$null
                 if ($LASTEXITCODE -eq 0 -and $ver -match '^3\.(12|13|14)$') {
                     return $candidato
                 }

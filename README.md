@@ -235,7 +235,10 @@ El proyecto está parametrizado para llevarse a plataformas como Render, Railway
 
 ## 8. Verificación Previa al Envío (`Antes de enviar`)
 
-En cada terminal donde corre un agente o la API, pulsa **Ctrl+C**. Si usaste `iniciar.ps1`, ejecuta `.\detener.ps1`.
+- [ ] Arranque desde el README con consultas reales.
+- [ ] Acceso protegido en la API y Telegram.
+- [ ] Capturas en `evidencias/`, explicadas como **LOCAL**.
+- [ ] Repositorio completo, sin `.venv`, cachés ni `.env`.
 
 ## Mac o Linux
 

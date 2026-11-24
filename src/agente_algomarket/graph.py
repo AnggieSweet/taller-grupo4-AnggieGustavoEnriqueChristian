@@ -4,18 +4,13 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from src import config
 from src.agente_algomarket.prompts import SYSTEM_PROMPT
+from src.agente_algomarket.texto import texto_de_contenido
 from src.agente_algomarket.tools import buscar_producto, horario_supermercado
 from src.comun.modelo import crear_llm_gemini
 
 load_dotenv()
 
 modelo = crear_llm_gemini(timeout=30.0, permitir_sin_clave_al_importar=True)
-from src.agente_algomarket.texto import texto_de_contenido
-
-load_dotenv()
-
-modelo_nombre = os.getenv("MODELO", "gemini-3.5-flash-lite")
-modelo = ChatGoogleGenerativeAI(model=modelo_nombre, request_timeout=30)
 
 memoria = MemorySaver()
 
@@ -27,11 +22,8 @@ graph = create_agent(
 )
 
 
-MAX_PASOS_AGENTE = int(os.getenv("MAX_PASOS_AGENTE", "12"))
-
-
 def _config(context_id: str) -> dict:
-    return {"configurable": {"thread_id": context_id}, "recursion_limit": MAX_PASOS_AGENTE * 2}
+    return {"configurable": {"thread_id": context_id}, "recursion_limit": config.MAX_PASOS_AGENTE * 2}
 
 
 def _texto(mensaje) -> str:
