@@ -157,7 +157,7 @@ Si prefieres levantar únicamente un componente puntual en su propia terminal (y
    } | ConvertTo-Json
    Invoke-RestMethod -Method Post -Uri 'http://localhost:8010/chat' -Headers $headers -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($cuerpo))
    ```
-3. **Suite automatizada `pytest` (35 pruebas: herramientas, fallos 502/504, seguridad 401/400/422, control de acceso A2A con `AGENT_API_KEY`, multi-agente, fidelidad CLP y 18 casos del supervisor):**
+3. **Suite automatizada `pytest` (46 pruebas: herramientas, fallos 502/504, seguridad 401/400/422, control de acceso A2A con `AGENT_API_KEY`, arranque de los 6 agentes, multi-agente, fidelidad CLP y 18 casos del supervisor; el supervisor y el arranque del agente CrewAI se omiten si no están los agentes levantados o CrewAI no está en `.venv`):**
    ```powershell
    .\.venv\Scripts\python.exe -m pytest -v
    ```
@@ -169,6 +169,72 @@ Si prefieres levantar únicamente un componente puntual en su propia terminal (y
   .\detener.ps1
   ```
 - Si levantaste `scripts.iniciar_todo` o `scripts.telegram_local` en una terminal interactiva, presiona **`Ctrl+C`** en esa terminal (cierra subprocesos y elimina el webhook de Telegram automáticamente).
+
+### 4.5 Mac o Linux
+
+Los scripts `instalar.sh`, `iniciar.sh` y `detener.sh` equivalen a los `.ps1` de Windows. Se probaron en macOS con Python 3.12 y deberían funcionar igual en Linux.
+
+**Requisitos:** Python 3.13 o 3.12 con `venv` (Mac: `brew install python@3.13`; Debian/Ubuntu: `sudo apt install python3.13 python3.13-venv`), `curl` y conexión a internet (Gemini y, si se usa, Telegram).
+
+1. Instala los entornos `.venv` y `.venv-crew` y crea `.env` desde `.env.example`:
+
+   ```bash
+   bash instalar.sh
+   ```
+
+   Para usar un Python concreto: `PYTHON=/ruta/a/python3.13 bash instalar.sh`.
+
+2. Configura `.env`. Guarda `GOOGLE_API_KEY` sin que se vea en pantalla:
+
+   ```bash
+   .venv/bin/python -m scripts.configurar_clave
+   ```
+
+   Genera una clave para `API_KEY` y pégala en `.env`:
+
+   ```bash
+   .venv/bin/python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+
+3. Levanta los seis agentes y la API en segundo plano. El script espera a que cada servicio responda y deja los registros en `logs/<servicio>.log`:
+
+   ```bash
+   bash iniciar.sh
+   ```
+
+4. Prueba con Swagger en [http://localhost:8010/docs](http://localhost:8010/docs) (botón **Authorize**), o con `curl`. Carga la clave desde `.env` para no escribirla en la terminal:
+
+   ```bash
+   export API_KEY="$(grep '^API_KEY=' .env | cut -d= -f2-)"
+   ```
+
+   Acceso permitido (200):
+
+   ```bash
+   curl -s -X POST http://localhost:8010/chat -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"user_id": "usuario-123", "texto": "¿Cuánto cuesta la leche en AlgoMarket?"}'
+   ```
+
+   Acceso rechazado (401):
+
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8010/chat -H "Content-Type: application/json" -d '{"user_id": "usuario-123", "texto": "hola"}'
+   ```
+
+5. Pruebas automatizadas:
+
+   ```bash
+   .venv/bin/python -m pytest -v
+   ```
+
+6. Telegram (opcional): con los servicios arriba y `TELEGRAM_*` configurado en `.env`, ejecuta `.venv/bin/python -m scripts.telegram_local` y escribe al bot. Requiere `cloudflared` (`brew install cloudflared`). Ctrl+C borra el webhook y cierra el túnel.
+
+7. Detén todos los servicios:
+
+   ```bash
+   bash detener.sh
+   ```
+
+Si un puerto está ocupado, `iniciar.sh` lo avisa y no levanta ese servicio. Si quedó una ejecución anterior, `bash detener.sh` borra `logs/pids.txt` y permite iniciar otra vez.
 
 ---
 
@@ -188,6 +254,8 @@ Todas las capturas y registros en `evidencias/` provienen de nuestra **ejecució
 | **Caso 6 — Canal Telegram: rechazo (`chat_id` no autorizado) y primera consulta autorizada**<br>[06-telegram-control-acceso-y-respuesta.png](evidencias/06-telegram-control-acceso-y-respuesta.png) | `LOCAL` · `2026-11-22` | 1) Mensajes `/start`, `"Hola"` y `"Soy celiaco"` antes de autorizar el `chat_id`.<br>2) Tras agregar el `chat_id` a `TELEGRAM_PERMITIDOS`: `"Soy celaico donde puedo comer?"`. | 1) Rechazar con `"No autorizado. Tu chat_id es ..."` sin invocar modelos.<br>2) Invocar por A2A a `Agente de Christian`, informar estado horario real y advertir contaminación cruzada. | 1) A las `22:38–22:39` el bot rechazó los 3 mensajes (`chat_id` parcialmente oculto dejando visible `6562`).<br>2) A las `22:42` respondió informando horario de domingo (`11:30 a 21:00`), riesgo de contaminación cruzada y ofreció buscar opciones para cuando abra. | Correlacionado en log con `req_id=tg_fdbc0992 · chat=***6562 · a2a=[Agente de Christian(2718ms)]`. Probado sobre túnel temporal local `cloudflared` (no producción). |
 | **Caso 7 — Canal Telegram: memoria conversacional y fidelidad de carta/condiciones en CLP**<br>[07-telegram-memoria-y-carta-clp.png](evidencias/07-telegram-memoria-y-carta-clp.png) | `LOCAL` · `2026-11-22` | Respuesta de seguimiento de una sola palabra en el mismo chat: `"Si"` (`22:50`). | Recordar por `thread_id="tg-<chat_id>"` la restricción celíaca previa, enrutar a `Agente de Christian`, consultar `buscar_platos` y entregar precios exactos en CLP, locales, alérgenos y alerta de contaminación cruzada. | A las `22:51` entregó **Brasa Andina (T-02)** (`$7.490` / `$8.990`), **Raíz Verde (T-09)** (`$7.490` / `$7.990`, cocina 100 % libre de maní), **La Catrina (T-07)** (`$5.990` / `$5.490`), **Fuente Criolla (T-06)** (`$6.990`, `12:00 a 16:00`), **Dulce Brisa (T-12)** (`$2.790`, no acepta efectivo), **Polo Norte Gelato (T-13)** (`$1.990`) y alerta de contaminación cruzada. | Correlacionado en log con `req_id=tg_975337c9 · chat=***6562 · a2a=[Agente de Christian(2729ms)] · total=4495ms`. |
 | **Caso 8 — Registro de ejecución correlacionado A2A (FastAPI + Telegram)**<br>[08-captura-registro-ejecucion-a2a.png](evidencias/08-captura-registro-ejecucion-a2a.png), [08-registro-ejecucion-correlacionado.log](evidencias/08-registro-ejecucion-correlacionado.log) y [test_supervisor.txt](test_supervisor.txt) | `LOCAL` · `2026-11-22` | Revisión de `logs/api.log` durante las solicitudes de Swagger y Telegram, más evaluación de 18 casos en `scripts.test_supervisor`. | Relacionar cada solicitud (`req_id`, `user_id` / `chat=***6562`) con los agentes A2A invocados y sus latencias ocultando datos sensibles. | Registro correlacionado (`req_fb7562ca` multi-agente, `tg_fdbc0992` y `tg_975337c9` Telegram `***6562`, rechazos `401` y bloqueo `400`) y `17/18 (94.4%)` en clasificación del supervisor. | Cero claves, tokens ni `chat_id` completos expuestos en logs o capturas. |
+
+**Evidencias adicionales del agente AlgoMarket:** [docs/evidencias-algomarket.md](docs/evidencias-algomarket.md) registra 12 casos propios del supermercado (precio y unidad, ofertas, horario, acceso 200/401, texto vacío y falla del agente) con sus capturas en `docs/capturas-algomarket/`.
 
 ### Capturas locales
 
@@ -242,6 +310,44 @@ El proyecto está parametrizado para llevarse a plataformas como Render, Railway
 - **Datos que deben conservarse en producción:** Para no perder conversaciones entre reinicios o réplicas, debe reemplazarse `MemorySaver` por un checkpointer persistente (`PostgresSaver` sobre PostgreSQL gestionado o `SqliteSaver` en volumen persistente) conservando las tablas de checkpoints por `thread_id`, además de almacenar de forma persistente la configuración de usuarios autorizados (`TELEGRAM_PERMITIDOS`).
 - **Servicios externos requeridos:** API de Google Gemini (`GOOGLE_API_KEY` o Vertex AI IAM), API de Telegram Bot (`api.telegram.org` apuntando por HTTPS al dominio estable de la plataforma sin requerir `cloudflared`) y base de datos PostgreSQL para persistencia de sesiones.
 
+### 7.1 Despliegue publicado en Heroku (opcional, punto extra)
+
+Entorno remoto: **https://taller-grupo4-agentes-25a513d1b15a.herokuapp.com** (Swagger en `/docs`). Funciona sin depender de un computador del grupo. La clave `X-API-Key` se entrega al equipo docente por una vía privada; no está en el repositorio.
+
+**Cómo está armado**
+
+- Heroku entrega un solo puerto público por app. Por eso `scripts/servidor_unico.py` levanta los seis agentes y la API en un mismo proceso: los agentes escuchan solo dentro del contenedor (`127.0.0.1`, puertos 8000–8006) y se comunican por A2A igual que en local; la API escucha en `$PORT` y es lo único expuesto.
+- `Dockerfile` instala en una sola imagen las dependencias de `requirements.txt` y `requirements-crew.txt` (son compatibles entre sí). `heroku.yml` indica a Heroku que construya esa imagen (stack `container`).
+- Con `heroku.yml` (stack `container`) Heroku usa este `Dockerfile` e ignora el `Procfile`; el `Procfile` queda como alternativa para el buildpack de Python (ver arriba).
+- Si se define `AGENT_API_KEY`, el coordinador la envía a los agentes internos; es opcional aquí porque los agentes no quedan expuestos.
+- Dyno **Basic** (512 MB): el proceso completo usa unos 230 MB en reposo (medido con `heroku labs:enable log-runtime-metrics`) y arranca en unos 5 segundos.
+
+**Probar el entorno remoto**
+
+```bash
+export URL=https://taller-grupo4-agentes-25a513d1b15a.herokuapp.com
+export API_KEY="la clave entregada por vía privada"
+curl -s -X POST $URL/chat -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"user_id": "evaluador-1", "texto": "¿Qué películas dan mañana en IMAX?"}'
+curl -s -o /dev/null -w "%{http_code}\n" -X POST $URL/chat -H "Content-Type: application/json" -d '{"user_id": "evaluador-1", "texto": "hola"}'   # 401
+```
+
+**Reproducir el despliegue** (requiere [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli), una cuenta con medio de pago y un nombre de app libre):
+
+```bash
+heroku login
+heroku apps:create NOMBRE-APP --stack container
+heroku config:set GOOGLE_API_KEY=... API_KEY=... MODELO=gemini-3.5-flash-lite ZONA_HORARIA=America/Santiago -a NOMBRE-APP
+git push heroku main
+heroku ps:type web=basic -a NOMBRE-APP
+heroku logs --tail -a NOMBRE-APP
+```
+
+No hace falta configurar `URL_*` ni `URLS_AGENTES`: el servidor único usa las direcciones internas por defecto. Para Telegram, agrega `TELEGRAM_TOKEN`, `TELEGRAM_SECRET` y `TELEGRAM_PERMITIDOS` con `heroku config:set` y apunta el bot a la app con `python -m scripts.webhook_telegram https://NOMBRE-APP.herokuapp.com`.
+
+**Costo y apagado:** el dyno Basic cuesta hasta USD 7 al mes, cobrado por segundo. Para detenerlo sin borrar la app: `heroku ps:scale web=0 -a NOMBRE-APP`; para eliminarla: `heroku apps:destroy NOMBRE-APP`.
+
+**Límites:** la memoria conversacional está en RAM y se pierde cuando Heroku reinicia el dyno (al menos una vez al día o en cada despliegue). Los registros de Heroku se conservan poco tiempo; las evidencias se guardan como capturas.
+
 ---
 
 ## 8. Verificación Previa al Envío (`Antes de enviar`)
@@ -250,69 +356,3 @@ El proyecto está parametrizado para llevarse a plataformas como Render, Railway
 - [ ] Acceso protegido en la API y Telegram.
 - [ ] Capturas en `evidencias/`, explicadas como **LOCAL**.
 - [ ] Repositorio completo, sin `.venv`, cachés ni `.env`.
-
-## Mac o Linux
-
-Los scripts `instalar.sh`, `iniciar.sh` y `detener.sh` equivalen a los `.ps1` de Windows. Se probaron en macOS con Python 3.12 y deberían funcionar igual en Linux.
-
-**Requisitos:** Python 3.13 o 3.12 con `venv` (Mac: `brew install python@3.13`; Debian/Ubuntu: `sudo apt install python3.13 python3.13-venv`), `curl` y conexión a internet (Gemini y, si se usa, Telegram).
-
-1. Instala los entornos `.venv` y `.venv-crew` y crea `.env` desde `.env.example`:
-
-   ```bash
-   bash instalar.sh
-   ```
-
-   Para usar un Python concreto: `PYTHON=/ruta/a/python3.13 bash instalar.sh`.
-
-2. Configura `.env`. Guarda `GOOGLE_API_KEY` sin que se vea en pantalla:
-
-   ```bash
-   .venv/bin/python -m scripts.configurar_clave
-   ```
-
-   Genera una clave para `API_KEY` y pégala en `.env`:
-
-   ```bash
-   .venv/bin/python -c "import secrets; print(secrets.token_urlsafe(32))"
-   ```
-
-3. Levanta los seis agentes y la API en segundo plano. El script espera a que cada servicio responda y deja los registros en `logs/<servicio>.log`:
-
-   ```bash
-   bash iniciar.sh
-   ```
-
-4. Prueba con Swagger en [http://localhost:8010/docs](http://localhost:8010/docs) (botón **Authorize**), o con `curl`. Carga la clave desde `.env` para no escribirla en la terminal:
-
-   ```bash
-   export API_KEY="$(grep '^API_KEY=' .env | cut -d= -f2-)"
-   ```
-
-   Acceso permitido (200):
-
-   ```bash
-   curl -s -X POST http://localhost:8010/chat -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"user_id": "usuario-123", "texto": "¿Cuánto cuesta la leche en AlgoMarket?"}'
-   ```
-
-   Acceso rechazado (401):
-
-   ```bash
-   curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8010/chat -H "Content-Type: application/json" -d '{"user_id": "usuario-123", "texto": "hola"}'
-   ```
-
-5. Pruebas automatizadas (se indica la carpeta `tests` porque pytest también intenta leer `test_supervisor.txt` de la raíz y falla):
-
-   ```bash
-   .venv/bin/python -m pytest tests
-   ```
-
-6. Telegram (opcional): con los servicios arriba y `TELEGRAM_*` configurado en `.env`, ejecuta `.venv/bin/python -m scripts.telegram_local` y escribe al bot. Requiere `cloudflared` (`brew install cloudflared`). Ctrl+C borra el webhook y cierra el túnel.
-
-7. Detén todos los servicios:
-
-   ```bash
-   bash detener.sh
-   ```
-
-Si un puerto está ocupado, `iniciar.sh` lo avisa y no levanta ese servicio. Si quedó una ejecución anterior, `bash detener.sh` borra `logs/pids.txt` y permite iniciar otra vez.
